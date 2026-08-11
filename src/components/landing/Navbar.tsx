@@ -82,6 +82,13 @@ export function Navbar() {
           {!loading && user ? (
             <div className="flex items-center gap-3">
               <Link
+                href="/hostels"
+                className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5 border-violet-500/30 text-violet-300 hover:text-white" })}
+              >
+                <Building2 className="h-3.5 w-3.5 text-violet-400" />
+                Hostels
+              </Link>
+              <Link
                 href="/profile"
                 className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5" })}
               >

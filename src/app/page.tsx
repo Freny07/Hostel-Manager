@@ -1,12 +1,13 @@
+import Link from "next/link";
 import { Navbar } from "@/components/landing/Navbar";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { StatsSection } from "@/components/landing/StatsSection";
 import { Footer } from "@/components/landing/Footer";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Layers, ShieldCheck, ArrowUpRight, Cpu } from "lucide-react";
+import { ShieldCheck, Cpu, Zap, ArrowRight } from "lucide-react";
 
 export default function Home() {
   return (
@@ -25,18 +26,18 @@ export default function Home() {
         {/* Features & Modules */}
         <FeaturesSection />
 
-        {/* System Architecture Section */}
-        <section id="architecture" className="py-20 relative bg-slate-950/60 border-t border-slate-800">
+        {/* System Overview Section */}
+        <section id="overview" className="py-20 relative bg-slate-950/60 border-t border-slate-800">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mx-auto text-center space-y-4 mb-14">
               <Badge variant="default" className="px-3 py-1">
-                <Cpu className="h-3.5 w-3.5 mr-1" /> Modular Architecture
+                <Cpu className="h-3.5 w-3.5 mr-1" /> High Reliability System
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white">
-                Clean Engineering & Modern Stack
+                Built for Campus Scale & Speed
               </h2>
               <p className="text-slate-400 text-base sm:text-lg">
-                HostelOS is built with strict TypeScript typing, modular server & client boundaries, and an expandable domain model layer.
+                HostelOS provides instant synchronization between student mobile apps, warden control panels, and gate security terminals.
               </p>
             </div>
 
@@ -44,11 +45,11 @@ export default function Home() {
               <Card className="glass-card border-slate-800 p-2">
                 <CardHeader>
                   <div className="h-10 w-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-2">
-                    <Layers className="h-5 w-5 text-violet-400" />
+                    <Zap className="h-5 w-5 text-violet-400" />
                   </div>
-                  <CardTitle className="text-lg">Structured App Router</CardTitle>
+                  <CardTitle className="text-lg">Real-Time Sync</CardTitle>
                   <CardDescription className="text-slate-400 text-sm">
-                    Separated page routes, layout wrappers, and isolated client UI components adhering to Next.js App Router paradigms.
+                    Instant updates across room availability, gate movement entries, and emergency student notifications.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -58,9 +59,9 @@ export default function Home() {
                   <div className="h-10 w-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-2">
                     <ShieldCheck className="h-5 w-5 text-indigo-400" />
                   </div>
-                  <CardTitle className="text-lg">Strong Domain Types</CardTitle>
+                  <CardTitle className="text-lg">Secure Access Control</CardTitle>
                   <CardDescription className="text-slate-400 text-sm">
-                    Pre-configured TypeScript types for Hostel Blocks, Rooms, Students, Maintenance Tickets, and Gate Passes.
+                    Verified digital IDs, QR gate verification, and end-to-end encrypted resident profile management.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -68,27 +69,28 @@ export default function Home() {
               <Card className="glass-card border-slate-800 p-2">
                 <CardHeader>
                   <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-2">
-                    <ArrowUpRight className="h-5 w-5 text-emerald-400" />
+                    <Cpu className="h-5 w-5 text-emerald-400" />
                   </div>
-                  <CardTitle className="text-lg">Zero Bloat Foundation</CardTitle>
+                  <CardTitle className="text-lg">Unified Dashboard</CardTitle>
                   <CardDescription className="text-slate-400 text-sm">
-                    Production-ready baseline configured with Tailwind CSS, shadcn/ui components, ESLint, and environment variables.
+                    Centralized hub for wardens and administrators to manage bed allocations, fees, and maintenance workflows.
                   </CardDescription>
                 </CardHeader>
               </Card>
             </div>
 
-            {/* Architecture Banner */}
+            {/* Product CTA Banner */}
             <div className="mt-12 rounded-2xl bg-gradient-to-r from-violet-950/60 via-slate-900 to-indigo-950/60 border border-violet-500/20 p-8 sm:p-10 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-2 text-center md:text-left">
-                <h3 className="text-2xl font-bold text-white">Ready for Phase 2 Implementation?</h3>
+                <h3 className="text-2xl font-bold text-white">Ready to Modernize Your Campus Accommodation?</h3>
                 <p className="text-slate-300 text-sm max-w-xl">
-                  The initial project foundation is ready. Subsequent phases can safely connect authentication, database schemas, warden dashboards, and student portals.
+                  Create your student profile today or sign in to access room details and campus residence services.
                 </p>
               </div>
-              <Button variant="glow" size="lg" className="whitespace-nowrap">
-                Foundation Verified
-              </Button>
+              <Link href="/signup" className={buttonVariants({ variant: "glow", size: "lg", className: "whitespace-nowrap gap-2" })}>
+                Get Started
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
         </section>

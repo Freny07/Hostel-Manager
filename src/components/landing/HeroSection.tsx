@@ -1,4 +1,5 @@
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
@@ -40,13 +41,13 @@ export function HeroSection() {
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-            <Button variant="glow" size="lg" className="w-full sm:w-auto gap-2">
-              Launch Platform Demo
+            <Link href="/signup" className={buttonVariants({ variant: "glow", size: "lg", className: "w-full sm:w-auto gap-2" })}>
+              Get Started Now
               <ArrowRight className="h-5 w-5" />
-            </Button>
-            <Button variant="outline" size="lg" className="w-full sm:w-auto">
-              View Architecture Plan
-            </Button>
+            </Link>
+            <Link href="#features" className={buttonVariants({ variant: "outline", size: "lg", className: "w-full sm:w-auto" })}>
+              Explore Features
+            </Link>
           </div>
 
           {/* Quick Value Props */}

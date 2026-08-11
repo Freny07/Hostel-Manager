@@ -64,14 +64,11 @@ export function Navbar() {
           <Link href="#features" className="hover:text-white transition-colors">
             Features
           </Link>
-          <Link href="#modules" className="hover:text-white transition-colors">
-            Modules
-          </Link>
           <Link href="#stats" className="hover:text-white transition-colors">
             Impact
           </Link>
-          <Link href="#architecture" className="hover:text-white transition-colors">
-            Architecture
+          <Link href="#overview" className="hover:text-white transition-colors">
+            Overview
           </Link>
         </nav>
 
@@ -79,20 +76,23 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           <Badge variant="success" className="hidden sm:flex items-center gap-1 py-1 px-3">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            v1.0 Foundation
+            Live Operations
           </Badge>
 
           {!loading && user ? (
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-300 hidden sm:flex items-center gap-1.5 font-medium bg-slate-900 border border-slate-800 rounded-full px-3 py-1">
+              <Link
+                href="/profile"
+                className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5" })}
+              >
                 <UserIcon className="h-3.5 w-3.5 text-violet-400" />
-                {user.email}
-              </span>
+                My Profile
+              </Link>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
-                className="gap-1.5"
+                className="gap-1.5 text-slate-400 hover:text-white"
               >
                 <LogOut className="h-4 w-4" />
                 Sign Out

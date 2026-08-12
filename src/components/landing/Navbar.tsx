@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { Building2, LogOut, User as UserIcon, Bed } from "lucide-react";
+import { Building2, LogOut, User as UserIcon, Bed, Wrench } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@supabase/supabase-js";
@@ -94,6 +94,13 @@ export function Navbar() {
               >
                 <Bed className="h-3.5 w-3.5 text-indigo-400" />
                 Allocations
+              </Link>
+              <Link
+                href="/issues"
+                className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5 border-amber-500/30 text-amber-300 hover:text-white" })}
+              >
+                <Wrench className="h-3.5 w-3.5 text-amber-400" />
+                Issues
               </Link>
               <Link
                 href="/profile"

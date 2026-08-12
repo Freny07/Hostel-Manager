@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, DoorOpen, Plus, Loader2, Edit2, Trash2, ShieldCheck, AlertCircle, RefreshCw, Users, DollarSign } from "lucide-react";
+import { X, DoorOpen, Plus, Loader2, Edit2, Trash2, ShieldCheck, AlertCircle, RefreshCw, Users, DollarSign, Bed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RoomFormModal } from "./RoomFormModal";
 import { DeleteRoomDialog } from "./DeleteRoomDialog";
+import { RoomBedsModal } from "./RoomBedsModal";
 import {
   getRoomsForFloorAction,
   createRoomAction,
@@ -45,6 +46,9 @@ export function FloorRoomsModal({
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deletingRoom, setDeletingRoom] = useState<RoomWithBedCount | null>(null);
+
+  const [isBedsOpen, setIsBedsOpen] = useState(false);
+  const [selectedRoomForBeds, setSelectedRoomForBeds] = useState<RoomWithBedCount | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -87,6 +91,11 @@ export function FloorRoomsModal({
   const handleOpenDelete = (room: RoomWithBedCount) => {
     setDeletingRoom(room);
     setIsDeleteOpen(true);
+  };
+
+  const handleOpenBeds = (room: RoomWithBedCount) => {
+    setSelectedRoomForBeds(room);
+    setIsBedsOpen(true);
   };
 
   const reloadRooms = async () => {
@@ -258,28 +267,40 @@ export function FloorRoomsModal({
                     </div>
                   </div>
 
-                  {canManage && (
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-900">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenEdit(room)}
-                        className="gap-1.5 text-xs text-slate-300 hover:text-white"
-                      >
-                        <Edit2 className="h-3.5 w-3.5 text-emerald-400" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenDelete(room)}
-                        className="gap-1.5 text-xs text-rose-400 border-rose-500/20 hover:bg-rose-950/40 hover:text-rose-300"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Delete
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-900">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenBeds(room)}
+                      className="gap-1.5 text-xs text-teal-300 border-teal-500/30 hover:text-white hover:bg-teal-950/40"
+                    >
+                      <Bed className="h-3.5 w-3.5 text-teal-400" />
+                      Beds
+                    </Button>
+
+                    {canManage && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEdit(room)}
+                          className="gap-1.5 text-xs text-slate-300 hover:text-white"
+                        >
+                          <Edit2 className="h-3.5 w-3.5 text-emerald-400" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDelete(room)}
+                          className="gap-1.5 text-xs text-rose-400 border-rose-500/20 hover:bg-rose-950/40 hover:text-rose-300"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -328,6 +349,16 @@ export function FloorRoomsModal({
         onClose={() => setIsDeleteOpen(false)}
         room={deletingRoom}
         onConfirmDelete={handleDeleteConfirm}
+      />
+
+      <RoomBedsModal
+        isOpen={isBedsOpen}
+        onClose={() => setIsBedsOpen(false)}
+        room={selectedRoomForBeds}
+        floorLabel={floorLabel}
+        hostelName={hostelName}
+        canManage={canManage}
+        onBedsUpdated={() => reloadRooms()}
       />
     </div>
   );

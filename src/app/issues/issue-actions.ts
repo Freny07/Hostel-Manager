@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
 import { getUserRoleAndProfile } from "@/lib/rbac/auth-checks";
 import type { Database } from "@/lib/supabase/types";
+import { isValidStatusTransition, type IssueStatus } from "@/lib/issues/workflow";
 
 export type IssueRow = Database["public"]["Tables"]["issues"]["Row"];
 
@@ -428,4 +429,146 @@ export async function createIssueAction(
     success: true,
     data: newIssue as IssueRow,
   };
+}
+
+export interface IssueUpdateHistory {
+  id: string;
+  issue_id: string;
+  old_status: string | null;
+  new_status: string;
+  notes: string | null;
+  created_at: string;
+  changed_by?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  } | null;
+}
+
+/**
+ * Server Action: Update issue status (Staff & Admin ONLY)
+ * Enforces role-based permissions, server-side status validation, and audit logging.
+ */
+export async function updateIssueStatusAction({
+  issueId,
+  newStatus,
+  notes,
+}: {
+  issueId: string;
+  newStatus: IssueStatus;
+  notes?: string;
+}): Promise<IssueActionResult<IssueRow>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  // RBAC enforcement: Only staff (admin, warden) can update status
+  if (!["admin", "warden"].includes(role)) {
+    return {
+      success: false,
+      error: "Unauthorized: Only hostel administration staff can update issue statuses.",
+    };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+
+  // Re-fetch current status from database to prevent trusting client status state
+  const { data: currentIssue, error: fetchErr } = await issuesTable
+    .select("id, status")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (fetchErr || !currentIssue) {
+    return { success: false, error: "Maintenance issue record not found." };
+  }
+
+  const currentStatus = currentIssue.status as IssueStatus;
+
+  // Validate state machine transition
+  if (!isValidStatusTransition(currentStatus, newStatus)) {
+    return {
+      success: false,
+      error: `Invalid transition: Moving issue status from '${currentStatus}' to '${newStatus}' is not allowed.`,
+    };
+  }
+
+  // Perform database update
+  const resolvedAt = newStatus === "resolved" ? new Date().toISOString() : null;
+  const { data: updatedIssue, error: updateErr } = await issuesTable
+    .update({
+      status: newStatus,
+      resolved_at: resolvedAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", issueId)
+    .select()
+    .single();
+
+  if (updateErr) {
+    return {
+      success: false,
+      error: `Failed to update status: ${updateErr.message}`,
+    };
+  }
+
+  // Insert audit record into issue_updates
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesTable = (supabase as any).from("issue_updates");
+  await updatesTable.insert({
+    issue_id: issueId,
+    changed_by: user.id,
+    old_status: currentStatus,
+    new_status: newStatus,
+    notes: notes?.trim() || null,
+  });
+
+  revalidatePath("/issues");
+  revalidatePath(`/issues/${issueId}`);
+
+  return { success: true, data: updatedIssue as IssueRow };
+}
+
+/**
+ * Server Action: Fetch audit history of status updates for an issue
+ */
+export async function getIssueStatusHistoryAction(
+  issueId: string
+): Promise<IssueActionResult<IssueUpdateHistory[]>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesTable = (supabase as any).from("issue_updates");
+
+  const { data, error } = await updatesTable
+    .select(`
+      id,
+      issue_id,
+      old_status,
+      new_status,
+      notes,
+      created_at,
+      changed_by:profiles!issue_updates_changed_by_fkey (id, first_name, last_name, email)
+    `)
+    .eq("issue_id", issueId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, data: (data || []) as IssueUpdateHistory[] };
 }

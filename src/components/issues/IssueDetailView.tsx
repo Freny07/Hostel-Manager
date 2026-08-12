@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Wrench,
@@ -18,11 +20,20 @@ import {
   ShieldCheck,
   FileText,
   UserCheck,
+  RefreshCw,
+  History,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { DetailedIssue } from "@/app/issues/issue-actions";
+import { UpdateStatusModal } from "./UpdateStatusModal";
+import {
+  getIssueStatusHistoryAction,
+  type DetailedIssue,
+  type IssueUpdateHistory,
+} from "@/app/issues/issue-actions";
+import { STATUS_LABELS, type IssueStatus } from "@/lib/issues/workflow";
 
 interface IssueDetailViewProps {
   issue: DetailedIssue;
@@ -30,13 +41,38 @@ interface IssueDetailViewProps {
 }
 
 export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
+  const router = useRouter();
+
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [history, setHistory] = useState<IssueUpdateHistory[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
   const hostel = issue.hostel;
   const room = issue.room;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const floor = (room as any)?.floor;
   const reporter = issue.reporter;
   const activeAssignment = issue.assignments?.find((a) => a.status === "active") || issue.assignments?.[0];
+
+  useEffect(() => {
+    let isMounted = true;
+    getIssueStatusHistoryAction(issue.id)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.success && res.data) {
+          setHistory(res.data);
+        }
+        setIsLoadingHistory(false);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setIsLoadingHistory(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [issue.id]);
 
   const getCategoryEmoji = (category: string) => {
     switch (category) {
@@ -141,14 +177,24 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
 
   return (
     <div className="space-y-8">
-      {/* Back Navigation Button */}
-      <div>
+      {/* Back Navigation & Staff Controls Top Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Link href="/issues">
           <Button variant="outline" size="sm" className="gap-2 text-xs text-slate-300 hover:text-white">
             <ArrowLeft className="h-4 w-4 text-slate-400" />
             Back to Issues Directory
           </Button>
         </Link>
+
+        {!isStudent && (
+          <Button
+            onClick={() => setIsUpdateModalOpen(true)}
+            className="gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold shadow-md shadow-indigo-500/20"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Update Issue Status
+          </Button>
+        )}
       </div>
 
       {/* Header Banner */}
@@ -247,6 +293,60 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
                     <span className="font-semibold text-slate-200 block">Specific Location Details:</span>
                     <span className="text-slate-300">{issue.location_description}</span>
                   </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Status Audit History Timeline */}
+          <Card className="glass-card border-slate-800">
+            <CardHeader className="border-b border-slate-800/80 pb-4">
+              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                <History className="h-4 w-4 text-indigo-400" />
+                Status Transition Audit History
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              {isLoadingHistory ? (
+                <p className="text-xs text-slate-400">Loading update logs...</p>
+              ) : history.length > 0 ? (
+                <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
+                  {history.map((item) => (
+                    <div key={item.id} className="relative space-y-1 text-xs">
+                      <div className="absolute -left-[23px] top-0.5 h-3.5 w-3.5 rounded-full bg-indigo-500 border-2 border-slate-900" />
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="font-semibold text-white">
+                          Status changed to &quot;{STATUS_LABELS[item.new_status as IssueStatus] || item.new_status}&quot;
+                        </span>
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          {formatDate(item.created_at)}
+                        </span>
+                      </div>
+
+                      <p className="text-slate-400">
+                        Changed by:{" "}
+                        <strong className="text-slate-300">
+                          {item.changed_by
+                            ? `${item.changed_by.first_name} ${item.changed_by.last_name}`
+                            : "Staff"}
+                        </strong>
+                        {item.old_status && (
+                          <span> (From: {STATUS_LABELS[item.old_status as IssueStatus] || item.old_status})</span>
+                        )}
+                      </p>
+
+                      {item.notes && (
+                        <div className="rounded-lg bg-slate-950 border border-slate-800/80 p-2.5 mt-1.5 text-slate-300 italic">
+                          &quot;{item.notes}&quot;
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-400 flex items-center gap-2 py-2">
+                  <CheckCircle2 className="h-4 w-4 text-amber-400" />
+                  No status transitions recorded yet. Ticket is currently in initial status: <strong>{STATUS_LABELS[issue.status as IssueStatus] || issue.status}</strong>.
                 </div>
               )}
             </CardContent>
@@ -414,6 +514,20 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Staff Update Status Modal */}
+      {!isStudent && (
+        <UpdateStatusModal
+          isOpen={isUpdateModalOpen}
+          onClose={() => setIsUpdateModalOpen(false)}
+          issueId={issue.id}
+          currentStatus={issue.status as IssueStatus}
+          issueTitle={issue.title}
+          onSuccess={() => {
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

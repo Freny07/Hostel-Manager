@@ -8,6 +8,7 @@ import { IssueList } from "@/components/issues/IssueList";
 import {
   getIssuesAction,
   getStudentActiveResidenceAction,
+  getHostelsListAction,
 } from "./issue-actions";
 
 export default async function IssuesPage() {
@@ -19,13 +20,15 @@ export default async function IssuesPage() {
 
   const isStudent = role === "student";
 
-  const [issuesRes, residenceRes] = await Promise.all([
+  const [issuesRes, residenceRes, hostelsRes] = await Promise.all([
     getIssuesAction("all"),
     getStudentActiveResidenceAction(),
+    getHostelsListAction(),
   ]);
 
   const issues = issuesRes.success && issuesRes.data ? issuesRes.data : [];
   const residenceContext = residenceRes.success && residenceRes.data ? residenceRes.data : null;
+  const hostelsList = hostelsRes.success && hostelsRes.data ? hostelsRes.data : [];
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
@@ -35,6 +38,7 @@ export default async function IssuesPage() {
           initialIssues={issues}
           residenceContext={residenceContext}
           isStudent={isStudent}
+          hostelsList={hostelsList}
         />
       </main>
       <Footer />

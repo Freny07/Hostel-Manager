@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UpdateStatusModal } from "./UpdateStatusModal";
+import { AssignStaffModal } from "./AssignStaffModal";
 import {
   getIssueStatusHistoryAction,
   type DetailedIssue,
@@ -44,6 +45,7 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
   const router = useRouter();
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [history, setHistory] = useState<IssueUpdateHistory[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
@@ -187,13 +189,23 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
         </Link>
 
         {!isStudent && (
-          <Button
-            onClick={() => setIsUpdateModalOpen(true)}
-            className="gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold shadow-md shadow-indigo-500/20"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Update Issue Status
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => setIsAssignModalOpen(true)}
+              variant="outline"
+              className="gap-2 text-xs font-semibold border-indigo-500/30 text-indigo-300 hover:bg-indigo-950/40 hover:text-white"
+            >
+              <UserCheck className="h-4 w-4 text-indigo-400" />
+              Assign Maintenance Staff
+            </Button>
+            <Button
+              onClick={() => setIsUpdateModalOpen(true)}
+              className="gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold shadow-md shadow-indigo-500/20"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Update Issue Status
+            </Button>
+          </div>
         )}
       </div>
 
@@ -515,18 +527,30 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
         </div>
       </div>
 
-      {/* Staff Update Status Modal */}
+      {/* Staff Update Status & Assignment Modals */}
       {!isStudent && (
-        <UpdateStatusModal
-          isOpen={isUpdateModalOpen}
-          onClose={() => setIsUpdateModalOpen(false)}
-          issueId={issue.id}
-          currentStatus={issue.status as IssueStatus}
-          issueTitle={issue.title}
-          onSuccess={() => {
-            router.refresh();
-          }}
-        />
+        <>
+          <UpdateStatusModal
+            isOpen={isUpdateModalOpen}
+            onClose={() => setIsUpdateModalOpen(false)}
+            issueId={issue.id}
+            currentStatus={issue.status as IssueStatus}
+            issueTitle={issue.title}
+            onSuccess={() => {
+              router.refresh();
+            }}
+          />
+
+          <AssignStaffModal
+            isOpen={isAssignModalOpen}
+            onClose={() => setIsAssignModalOpen(false)}
+            issueId={issue.id}
+            issueTitle={issue.title}
+            onSuccess={() => {
+              router.refresh();
+            }}
+          />
+        </>
       )}
     </div>
   );

@@ -242,7 +242,8 @@ export async function getHostelsListAction(): Promise<
  * Server Action: Fetch issues for current user (or all if staff)
  */
 export async function getIssuesAction(
-  statusFilter?: string
+  statusFilter?: string,
+  hostelFilter?: string
 ): Promise<IssueActionResult<DetailedIssue[]>> {
   const { user, role } = await getUserRoleAndProfile();
 
@@ -268,6 +269,10 @@ export async function getIssuesAction(
 
   if (statusFilter && statusFilter !== "all") {
     query = query.eq("status", statusFilter);
+  }
+
+  if (hostelFilter && hostelFilter !== "all") {
+    query = query.eq("hostel_id", hostelFilter);
   }
 
   const { data: rawIssues, error } = await query.order("created_at", {
@@ -571,4 +576,168 @@ export async function getIssueStatusHistoryAction(
   }
 
   return { success: true, data: (data || []) as IssueUpdateHistory[] };
+}
+
+export interface StaffUserOption {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role_name?: string | null;
+}
+
+/**
+ * Server Action: Fetch maintenance staff & admin profiles for issue assignment
+ */
+export async function getMaintenanceStaffUsersAction(): Promise<
+  IssueActionResult<StaffUserOption[]>
+> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!["admin", "warden"].includes(role)) {
+    return { success: false, error: "Unauthorized." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const profilesTable = (supabase as any).from("profiles");
+
+  const { data, error } = await profilesTable
+    .select(`
+      id,
+      first_name,
+      last_name,
+      email,
+      role:roles!profiles_role_id_fkey (name)
+    `)
+    .order("first_name", { ascending: true });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Map staff profiles
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const staffUsers: StaffUserOption[] = (data || []).map((p: any) => ({
+    id: p.id,
+    first_name: p.first_name,
+    last_name: p.last_name,
+    email: p.email,
+    role_name: p.role?.name || null,
+  }));
+
+  return { success: true, data: staffUsers };
+}
+
+/**
+ * Server Action: Assign an issue to a maintenance staff user (Admin/Warden ONLY)
+ */
+export async function assignIssueAction({
+  issueId,
+  assignedToId,
+  notes,
+}: {
+  issueId: string;
+  assignedToId: string;
+  notes?: string;
+}): Promise<IssueActionResult<null>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!["admin", "warden"].includes(role)) {
+    return {
+      success: false,
+      error: "Unauthorized: Only hostel administration staff can assign issues.",
+    };
+  }
+
+  if (!issueId || !assignedToId) {
+    return {
+      success: false,
+      error: "Both Issue ID and Assigned Staff User ID are required.",
+    };
+  }
+
+  const supabase = await createServerClient();
+
+  // Validate target staff user exists
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const profilesTable = (supabase as any).from("profiles");
+  const { data: staffExists } = await profilesTable
+    .select("id")
+    .eq("id", assignedToId)
+    .maybeSingle();
+
+  if (!staffExists) {
+    return {
+      success: false,
+      error: "Invalid staff user: Target profile was not found.",
+    };
+  }
+
+  // Mark previous active assignments for this issue as 'reassigned'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assignmentsTable = (supabase as any).from("issue_assignments");
+  await assignmentsTable
+    .update({ status: "reassigned", updated_at: new Date().toISOString() })
+    .eq("issue_id", issueId)
+    .eq("status", "active");
+
+  // Insert new active assignment record
+  const { error: assignErr } = await assignmentsTable.insert({
+    issue_id: issueId,
+    assigned_to: assignedToId,
+    assigned_by: user.id,
+    status: "active",
+    notes: notes?.trim() || null,
+    assigned_at: new Date().toISOString(),
+  });
+
+  if (assignErr) {
+    return {
+      success: false,
+      error: `Failed to assign staff: ${assignErr.message}`,
+    };
+  }
+
+  // Fetch current issue status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+  const { data: currentIssue } = await issuesTable
+    .select("id, status")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  // If issue is in 'reported' status, automatically update status to 'assigned'
+  if (currentIssue && currentIssue.status === "reported") {
+    await issuesTable
+      .update({
+        status: "assigned",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", issueId);
+
+    // Insert audit update record
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatesTable = (supabase as any).from("issue_updates");
+    await updatesTable.insert({
+      issue_id: issueId,
+      changed_by: user.id,
+      old_status: "reported",
+      new_status: "assigned",
+      notes: notes?.trim() ? `Assigned staff: ${notes.trim()}` : "Issue assigned to maintenance staff.",
+    });
+  }
+
+  revalidatePath("/issues");
+  revalidatePath(`/issues/${issueId}`);
+
+  return { success: true, data: null };
 }

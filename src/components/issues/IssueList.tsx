@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -21,35 +21,55 @@ import {
   User,
   History,
   Layers,
+  GraduationCap,
+  Mail,
+  UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportIssueModal } from "./ReportIssueModal";
-import type { DetailedIssue, StudentResidenceContext } from "@/app/issues/issue-actions";
+import { UpdateStatusModal } from "./UpdateStatusModal";
+import { AssignStaffModal } from "./AssignStaffModal";
+import {
+  getHostelsListAction,
+  type DetailedIssue,
+  type StudentResidenceContext,
+  type HostelsOption,
+} from "@/app/issues/issue-actions";
+import { type IssueStatus } from "@/lib/issues/workflow";
 
 interface IssueListProps {
   initialIssues: DetailedIssue[];
   residenceContext: StudentResidenceContext | null;
   isStudent: boolean;
+  hostelsList?: HostelsOption[];
 }
 
 export function IssueList({
   initialIssues,
   residenceContext,
   isStudent,
+  hostelsList: initialHostels,
 }: IssueListProps) {
   const router = useRouter();
+
+  // Hostels list for filter
+  const [hostels, setHostels] = useState<HostelsOption[]>(initialHostels || []);
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [hostelFilter, setHostelFilter] = useState<string>("all");
 
   // Modal & Toast state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedIssueForUpdate, setSelectedIssueForUpdate] = useState<DetailedIssue | null>(null);
+  const [selectedIssueForAssign, setSelectedIssueForAssign] = useState<DetailedIssue | null>(null);
+
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
@@ -62,6 +82,21 @@ export function IssueList({
     }, 4000);
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    if (!initialHostels || initialHostels.length === 0) {
+      getHostelsListAction().then((res) => {
+        if (!isMounted) return;
+        if (res.success && res.data) {
+          setHostels(res.data);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [initialHostels]);
+
   // Filtered issues calculation
   const filteredIssues = useMemo(() => {
     return initialIssues.filter((issue) => {
@@ -69,16 +104,17 @@ export function IssueList({
       const room = issue.room;
       const reporter = issue.reporter;
 
-      const searchStr = `${issue.title} ${issue.description} ${issue.category} ${hostel?.name || ""} ${room?.room_number || ""} ${issue.location_description || ""} ${reporter?.first_name || ""} ${reporter?.last_name || ""}`.toLowerCase();
+      const searchStr = `${issue.title} ${issue.description} ${issue.category} ${hostel?.name || ""} ${room?.room_number || ""} ${issue.location_description || ""} ${reporter?.first_name || ""} ${reporter?.last_name || ""} ${reporter?.roll_number || ""}`.toLowerCase();
 
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || issue.status === statusFilter;
       const matchesPriority = priorityFilter === "all" || issue.priority === priorityFilter;
       const matchesCategory = categoryFilter === "all" || issue.category === categoryFilter;
+      const matchesHostel = hostelFilter === "all" || issue.hostel_id === hostelFilter;
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
+      return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesHostel;
     });
-  }, [initialIssues, searchTerm, statusFilter, priorityFilter, categoryFilter]);
+  }, [initialIssues, searchTerm, statusFilter, priorityFilter, categoryFilter, hostelFilter]);
 
   // Summary Statistics
   const openIssuesCount = useMemo(() => {
@@ -86,12 +122,8 @@ export function IssueList({
   }, [initialIssues]);
 
   const resolvedIssuesCount = useMemo(() => {
-    return initialAllocationsResolvedCount(initialIssues);
+    return initialIssues.filter((i) => i.status === "resolved").length;
   }, [initialIssues]);
-
-  function initialAllocationsResolvedCount(issues: DetailedIssue[]): number {
-    return issues.filter((i) => i.status === "resolved").length;
-  }
 
   const getStatusBadge = (status: DetailedIssue["status"]) => {
     switch (status) {
@@ -116,7 +148,7 @@ export function IssueList({
       case "repair_scheduled":
         return (
           <Badge variant="secondary" className="bg-teal-500/20 text-teal-300 border-teal-500/30 gap-1 py-1">
-            <Calendar className="h-3 w-3 text-teal-400" /> Repair Scheduled
+            <Calendar className="h-3 w-3 text-teal-400" /> Scheduled
           </Badge>
         );
       case "resolved":
@@ -134,26 +166,26 @@ export function IssueList({
       case "urgent":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">
-            <Flame className="h-3 w-3 text-rose-400" /> Urgent Priority
+            <Flame className="h-3 w-3 text-rose-400" /> Urgent
           </span>
         );
       case "high":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded bg-orange-950 text-orange-300 border border-orange-800">
-            <AlertTriangle className="h-3 w-3 text-orange-400" /> High Priority
+            <AlertTriangle className="h-3 w-3 text-orange-400" /> High
           </span>
         );
       case "medium":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-slate-900 text-amber-300 border border-slate-800">
-            Medium Priority
+            Medium
           </span>
         );
       case "low":
       default:
         return (
           <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
-            Low Priority
+            Low
           </span>
         );
     }
@@ -207,6 +239,7 @@ export function IssueList({
     setStatusFilter("all");
     setPriorityFilter("all");
     setCategoryFilter("all");
+    setHostelFilter("all");
   };
 
   return (
@@ -242,7 +275,7 @@ export function IssueList({
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {isStudent ? "My Reported Issues" : "Maintenance Issues Directory"}
+              {isStudent ? "My Reported Issues" : "Warden Maintenance Management"}
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
               {initialIssues.length} {initialIssues.length === 1 ? "Ticket" : "Tickets"}
@@ -251,7 +284,7 @@ export function IssueList({
           <p className="text-slate-400 text-sm mt-1">
             {isStudent
               ? "Track, manage, and view the progress of your reported campus repair tickets."
-              : "View and track maintenance issue tickets submitted across campus hostels."}
+              : "Review reported maintenance requests across campus hostels, update ticket statuses, and coordinate repairs."}
           </p>
         </div>
 
@@ -311,7 +344,7 @@ export function IssueList({
           <div className="relative w-full md:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <Input
-              placeholder="Search by title, description, location, or room number..."
+              placeholder="Search by title, student name, roll number, hostel, room..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 bg-slate-950 border-slate-800 focus:border-amber-500 text-slate-100 placeholder:text-slate-500"
@@ -327,7 +360,7 @@ export function IssueList({
           </div>
 
           {/* Filter Reset Button */}
-          {(searchTerm || statusFilter !== "all" || priorityFilter !== "all" || categoryFilter !== "all") && (
+          {(searchTerm || statusFilter !== "all" || priorityFilter !== "all" || categoryFilter !== "all" || hostelFilter !== "all") && (
             <Button
               variant="outline"
               size="sm"
@@ -340,11 +373,33 @@ export function IssueList({
         </div>
 
         {/* Dropdown Filters Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${!isStudent ? "md:grid-cols-4" : "md:grid-cols-3"} gap-3 pt-2 border-t border-slate-800/80`}>
+          {/* Hostel Select (Staff Only) */}
+          {!isStudent && (
+            <div className="space-y-1">
+              <label htmlFor="hostel_filter" className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Building2 className="h-3 w-3 text-amber-400" /> Hostel Filter
+              </label>
+              <select
+                id="hostel_filter"
+                value={hostelFilter}
+                onChange={(e) => setHostelFilter(e.target.value)}
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-amber-500 focus:outline-none"
+              >
+                <option value="all">All Campus Hostels</option>
+                {hostels.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name} ({h.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Status Select */}
           <div className="space-y-1">
             <label htmlFor="status_filter" className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <Filter className="h-3 w-3 text-amber-400" /> Status Filter
+              <Filter className="h-3 w-3 text-indigo-400" /> Status Filter
             </label>
             <select
               id="status_filter"
@@ -383,7 +438,7 @@ export function IssueList({
           {/* Category Select */}
           <div className="space-y-1">
             <label htmlFor="category_filter" className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <Layers className="h-3 w-3 text-indigo-400" /> Category Filter
+              <Layers className="h-3 w-3 text-violet-400" /> Category Filter
             </label>
             <select
               id="category_filter"
@@ -467,7 +522,29 @@ export function IssueList({
                     )}
                   </div>
 
-                  {/* Reporter & Timestamps (Created & Updated) */}
+                  {/* Reporter Details (Prominent for Wardens/Staff) */}
+                  {!isStudent && reporter && (
+                    <div className="rounded-xl bg-indigo-950/30 border border-indigo-500/20 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 text-indigo-200">
+                        <GraduationCap className="h-4 w-4 text-indigo-400 shrink-0" />
+                        <span className="font-bold">
+                          {reporter.first_name} {reporter.last_name}
+                        </span>
+                        {reporter.roll_number && (
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-indigo-900/60 border border-indigo-700/50 text-indigo-300">
+                            {reporter.roll_number}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 text-slate-400 text-[11px]">
+                        <Mail className="h-3 w-3 text-slate-500" />
+                        <span>{reporter.email}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timestamps (Created & Updated) */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] text-slate-400 pt-2 border-t border-slate-900">
                     <div className="flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5 text-slate-500" />
@@ -485,14 +562,31 @@ export function IssueList({
                     </div>
                   </div>
 
-                  {!isStudent && reporter && (
-                    <div className="text-[11px] text-slate-500 pt-1">
-                      Reporter Profile: <strong className="text-slate-300">{reporter.first_name} {reporter.last_name} ({reporter.email})</strong>
-                    </div>
-                  )}
+                  {/* Action Buttons Row */}
+                  <div className="pt-2 border-t border-slate-900 flex flex-wrap items-center justify-between gap-2">
+                    {!isStudent ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedIssueForAssign(issue)}
+                          className="gap-1.5 text-xs text-indigo-300 border-indigo-500/30 hover:bg-indigo-950/40 hover:text-white"
+                        >
+                          <UserCheck className="h-3.5 w-3.5 text-indigo-400" /> Assign
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedIssueForUpdate(issue)}
+                          className="gap-1.5 text-xs text-violet-300 border-violet-500/30 hover:bg-violet-950/40 hover:text-white"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 text-violet-400" /> Status
+                        </Button>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
 
-                  {/* View Details Action Link */}
-                  <div className="pt-2 border-t border-slate-900 flex justify-end">
                     <Link href={`/issues/${issue.id}`}>
                       <Button variant="outline" size="sm" className="gap-1.5 text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10 hover:text-amber-300">
                         View Details →
@@ -514,8 +608,8 @@ export function IssueList({
             <h3 className="text-lg font-bold text-white">No Maintenance Issues Reported Yet</h3>
             <p className="text-slate-400 text-sm">
               {isStudent
-                ? "You currently have no maintenance or repair tickets logged. Click below to submit a new report if you notice any facility issue."
-                : "No maintenance issues have been reported in the database."}
+                ? "You currently have no maintenance or repair tickets logged."
+                : "No maintenance requests have been logged in the hostel database."}
             </p>
           </div>
           <Button
@@ -530,7 +624,7 @@ export function IssueList({
         /* Empty State: Filter returned 0 results */
         <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-10 text-center flex flex-col items-center justify-center space-y-3">
           <p className="text-slate-300 text-sm font-medium">
-            No issues match your active filter criteria.
+            No maintenance issues match your active filter criteria.
           </p>
           <Button
             variant="outline"
@@ -554,6 +648,35 @@ export function IssueList({
           router.refresh();
         }}
       />
+
+      {/* Staff Quick Status Update Modal */}
+      {selectedIssueForUpdate && (
+        <UpdateStatusModal
+          isOpen={!!selectedIssueForUpdate}
+          onClose={() => setSelectedIssueForUpdate(null)}
+          issueId={selectedIssueForUpdate.id}
+          currentStatus={selectedIssueForUpdate.status as IssueStatus}
+          issueTitle={selectedIssueForUpdate.title}
+          onSuccess={() => {
+            showNotification("success", "Issue status updated successfully.");
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* Staff Quick Assign Modal */}
+      {selectedIssueForAssign && (
+        <AssignStaffModal
+          isOpen={!!selectedIssueForAssign}
+          onClose={() => setSelectedIssueForAssign(null)}
+          issueId={selectedIssueForAssign.id}
+          issueTitle={selectedIssueForAssign.title}
+          onSuccess={() => {
+            showNotification("success", "Maintenance staff assigned successfully.");
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

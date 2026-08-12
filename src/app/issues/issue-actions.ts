@@ -7,6 +7,25 @@ import type { Database } from "@/lib/supabase/types";
 
 export type IssueRow = Database["public"]["Tables"]["issues"]["Row"];
 
+export interface IssueAssignmentDetail {
+  id: string;
+  status: string;
+  notes: string | null;
+  assigned_at: string;
+  completed_at: string | null;
+  assigned_to?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string | null;
+  } | null;
+  assigned_by?: {
+    first_name: string;
+    last_name: string;
+  } | null;
+}
+
 export interface DetailedIssue extends IssueRow {
   reporter?: {
     id: string;
@@ -14,17 +33,90 @@ export interface DetailedIssue extends IssueRow {
     last_name: string;
     email: string;
     roll_number: string | null;
+    phone: string | null;
   } | null;
   hostel?: {
     id: string;
     name: string;
     code: string;
+    address: string | null;
   } | null;
   room?: {
     id: string;
     room_number: string;
     room_type: string;
+    floor?: {
+      id: string;
+      floor_number: number;
+      name: string | null;
+    } | null;
   } | null;
+  assignments?: IssueAssignmentDetail[];
+}
+
+/**
+ * Server Action: Fetch full details for a specific maintenance issue with authorization check
+ */
+export async function getIssueDetailAction(
+  issueId: string
+): Promise<IssueActionResult<DetailedIssue>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+
+  const { data: rawIssue, error } = await issuesTable
+    .select(`
+      *,
+      reporter:profiles!issues_reporter_id_fkey (id, first_name, last_name, email, roll_number, phone),
+      hostel:hostels!issues_hostel_id_fkey (id, name, code, address),
+      room:rooms!issues_room_id_fkey (
+        id,
+        room_number,
+        room_type,
+        floor:floors!rooms_floor_id_fkey (
+          id,
+          floor_number,
+          name
+        )
+      ),
+      assignments:issue_assignments!issue_assignments_issue_id_fkey (
+        id,
+        status,
+        notes,
+        assigned_at,
+        completed_at,
+        assigned_to:profiles!issue_assignments_assigned_to_fkey (id, first_name, last_name, email, phone),
+        assigned_by:profiles!issue_assignments_assigned_by_fkey (first_name, last_name)
+      )
+    `)
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (error || !rawIssue) {
+    return { success: false, error: "Maintenance issue record not found." };
+  }
+
+  const issue = rawIssue as DetailedIssue;
+
+  // Authorization check: Students can ONLY access issues they reported
+  if (role === "student" && issue.reporter_id !== user.id) {
+    return {
+      success: false,
+      error: "Unauthorized: You do not have permission to view this issue.",
+    };
+  }
+
+  return { success: true, data: issue };
 }
 
 export interface StudentResidenceContext {

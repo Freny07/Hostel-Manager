@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Wrench,
@@ -18,11 +19,13 @@ import {
   MapPin,
   RefreshCw,
   User,
+  History,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportIssueModal } from "./ReportIssueModal";
 import type { DetailedIssue, StudentResidenceContext } from "@/app/issues/issue-actions";
 
@@ -42,6 +45,7 @@ export function IssueList({
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Modal & Toast state
@@ -58,7 +62,7 @@ export function IssueList({
     }, 4000);
   };
 
-  // Filtered issues
+  // Filtered issues calculation
   const filteredIssues = useMemo(() => {
     return initialIssues.filter((issue) => {
       const hostel = issue.hostel;
@@ -69,11 +73,25 @@ export function IssueList({
 
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || issue.status === statusFilter;
+      const matchesPriority = priorityFilter === "all" || issue.priority === priorityFilter;
       const matchesCategory = categoryFilter === "all" || issue.category === categoryFilter;
 
-      return matchesSearch && matchesStatus && matchesCategory;
+      return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
     });
-  }, [initialIssues, searchTerm, statusFilter, categoryFilter]);
+  }, [initialIssues, searchTerm, statusFilter, priorityFilter, categoryFilter]);
+
+  // Summary Statistics
+  const openIssuesCount = useMemo(() => {
+    return initialIssues.filter((i) => i.status !== "resolved").length;
+  }, [initialIssues]);
+
+  const resolvedIssuesCount = useMemo(() => {
+    return initialAllocationsResolvedCount(initialIssues);
+  }, [initialIssues]);
+
+  function initialAllocationsResolvedCount(issues: DetailedIssue[]): number {
+    return issues.filter((i) => i.status === "resolved").length;
+  }
 
   const getStatusBadge = (status: DetailedIssue["status"]) => {
     switch (status) {
@@ -98,7 +116,7 @@ export function IssueList({
       case "repair_scheduled":
         return (
           <Badge variant="secondary" className="bg-teal-500/20 text-teal-300 border-teal-500/30 gap-1 py-1">
-            <Calendar className="h-3 w-3 text-teal-400" /> Scheduled
+            <Calendar className="h-3 w-3 text-teal-400" /> Repair Scheduled
           </Badge>
         );
       case "resolved":
@@ -116,26 +134,26 @@ export function IssueList({
       case "urgent":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">
-            <Flame className="h-3 w-3 text-rose-400" /> Urgent
+            <Flame className="h-3 w-3 text-rose-400" /> Urgent Priority
           </span>
         );
       case "high":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded bg-orange-950 text-orange-300 border border-orange-800">
-            <AlertTriangle className="h-3 w-3 text-orange-400" /> High
+            <AlertTriangle className="h-3 w-3 text-orange-400" /> High Priority
           </span>
         );
       case "medium":
         return (
           <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-slate-900 text-amber-300 border border-slate-800">
-            Medium
+            Medium Priority
           </span>
         );
       case "low":
       default:
         return (
           <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
-            Low
+            Low Priority
           </span>
         );
     }
@@ -163,6 +181,32 @@ export function IssueList({
       default:
         return "📌";
     }
+  };
+
+  const formatDate = (isoString: string) => {
+    const d = new Date(isoString);
+    return d.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatDateTime = (isoString: string) => {
+    const d = new Date(isoString);
+    return d.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const resetAllFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setPriorityFilter("all");
+    setCategoryFilter("all");
   };
 
   return (
@@ -198,15 +242,15 @@ export function IssueList({
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Maintenance Issues
+              {isStudent ? "My Reported Issues" : "Maintenance Issues Directory"}
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-              {initialIssues.length} Reported
+              {initialIssues.length} {initialIssues.length === 1 ? "Ticket" : "Tickets"}
             </span>
           </div>
           <p className="text-slate-400 text-sm mt-1">
             {isStudent
-              ? "Report plumbing, electrical, internet, or appliance issues to your hostel administration."
+              ? "Track, manage, and view the progress of your reported campus repair tickets."
               : "View and track maintenance issue tickets submitted across campus hostels."}
           </p>
         </div>
@@ -221,54 +265,143 @@ export function IssueList({
         </Button>
       </div>
 
-      {/* Control Bar: Search & Category/Status Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Search */}
-        <div className="relative w-full sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-          <Input
-            placeholder="Search issues by title, category, location..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-slate-900/80 border-slate-800 focus:border-amber-500 text-slate-100 placeholder:text-slate-500"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="glass-card border-slate-800 p-2">
+          <CardHeader className="py-2 flex flex-row items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Total Reported</p>
+              <CardTitle className="text-2xl font-bold text-white mt-1">{initialIssues.length}</CardTitle>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <Wrench className="h-5 w-5" />
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="glass-card border-slate-800 p-2">
+          <CardHeader className="py-2 flex flex-row items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Open / Pending</p>
+              <CardTitle className="text-2xl font-bold text-white mt-1">{openIssuesCount}</CardTitle>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <Clock className="h-5 w-5" />
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="glass-card border-slate-800 p-2">
+          <CardHeader className="py-2 flex flex-row items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-400 uppercase font-mono tracking-wider">Resolved</p>
+              <CardTitle className="text-2xl font-bold text-white mt-1">{resolvedIssuesCount}</CardTitle>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <CheckCircle className="h-5 w-5" />
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
+
+      {/* Control Bar: Multi-Criteria Filters */}
+      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Search Input */}
+          <div className="relative w-full md:flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <Input
+              placeholder="Search by title, description, location, or room number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 bg-slate-950 border-slate-800 focus:border-amber-500 text-slate-100 placeholder:text-slate-500"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Filter Reset Button */}
+          {(searchTerm || statusFilter !== "all" || priorityFilter !== "all" || categoryFilter !== "all") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetAllFilters}
+              className="gap-1.5 text-xs text-slate-400 border-slate-800 hover:text-white shrink-0"
             >
-              Clear
-            </button>
+              <RefreshCw className="h-3.5 w-3.5" /> Reset Filters
+            </Button>
           )}
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          {/* Status Filter */}
-          <div className="flex items-center gap-1.5 overflow-x-auto">
-            <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0 font-medium">
-              <Filter className="h-3.5 w-3.5" /> Status:
-            </span>
-            {[
-              { id: "all", label: "All" },
-              { id: "reported", label: "Reported" },
-              { id: "assigned", label: "Assigned" },
-              { id: "investigating", label: "Investigating" },
-              { id: "repair_scheduled", label: "Scheduled" },
-              { id: "resolved", label: "Resolved" },
-            ].map((st) => (
-              <button
-                key={st.id}
-                onClick={() => setStatusFilter(st.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 ${
-                  statusFilter === st.id
-                    ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
-                    : "bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800"
-                }`}
-              >
-                {st.label}
-              </button>
-            ))}
+        {/* Dropdown Filters Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
+          {/* Status Select */}
+          <div className="space-y-1">
+            <label htmlFor="status_filter" className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Filter className="h-3 w-3 text-amber-400" /> Status Filter
+            </label>
+            <select
+              id="status_filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-amber-500 focus:outline-none"
+            >
+              <option value="all">All Statuses</option>
+              <option value="reported">Reported</option>
+              <option value="assigned">Assigned</option>
+              <option value="investigating">Investigating</option>
+              <option value="repair_scheduled">Repair Scheduled</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </div>
+
+          {/* Priority Select */}
+          <div className="space-y-1">
+            <label htmlFor="priority_filter" className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Flame className="h-3 w-3 text-orange-400" /> Priority Filter
+            </label>
+            <select
+              id="priority_filter"
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-amber-500 focus:outline-none"
+            >
+              <option value="all">All Priorities</option>
+              <option value="urgent">🔴 Urgent</option>
+              <option value="high">🟠 High</option>
+              <option value="medium">🟡 Medium</option>
+              <option value="low">🟢 Low</option>
+            </select>
+          </div>
+
+          {/* Category Select */}
+          <div className="space-y-1">
+            <label htmlFor="category_filter" className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Layers className="h-3 w-3 text-indigo-400" /> Category Filter
+            </label>
+            <select
+              id="category_filter"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-amber-500 focus:outline-none capitalize"
+            >
+              <option value="all">All Categories</option>
+              <option value="plumbing">🚰 Plumbing & Water</option>
+              <option value="electrical">⚡ Electrical & Power</option>
+              <option value="carpentry">🔨 Furniture & Carpentry</option>
+              <option value="appliance">🔌 Appliances</option>
+              <option value="cleaning">🧹 Housekeeping</option>
+              <option value="internet">🌐 Wi-Fi & Internet</option>
+              <option value="security">🛡️ Locks & Security</option>
+              <option value="pest_control">🪲 Pest Control</option>
+              <option value="other">📌 Other General</option>
+            </select>
           </div>
         </div>
       </div>
@@ -280,6 +413,7 @@ export function IssueList({
             const hostel = issue.hostel;
             const room = issue.room;
             const reporter = issue.reporter;
+            const isUpdatedLater = issue.updated_at && issue.updated_at !== issue.created_at;
 
             return (
               <Card
@@ -287,7 +421,7 @@ export function IssueList({
                 className="glass-card border-slate-800 hover:border-slate-700/80 transition-all duration-200 flex flex-col justify-between"
               >
                 <CardContent className="p-6 space-y-4">
-                  {/* Top Bar: Title & Category */}
+                  {/* Top Bar: Title, Category Emoji, Status & Priority */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 border border-slate-800 text-xl">
@@ -297,11 +431,12 @@ export function IssueList({
                         <h3 className="text-base font-bold text-white tracking-tight leading-snug">
                           {issue.title}
                         </h3>
-                        <p className="text-xs text-slate-400 capitalize mt-0.5 font-mono">
+                        <span className="text-[11px] text-slate-400 capitalize font-mono">
                           Category: {issue.category.replace("_", " ")}
-                        </p>
+                        </span>
                       </div>
                     </div>
+
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       {getStatusBadge(issue.status)}
                       {getPriorityBadge(issue.priority)}
@@ -313,33 +448,56 @@ export function IssueList({
                     {issue.description}
                   </p>
 
-                  {/* Location Info */}
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-900">
-                    <span className="flex items-center gap-1.5 text-slate-300">
-                      <Building2 className="h-3.5 w-3.5 text-amber-400" />
-                      {hostel?.name || "Hostel"} {room?.room_number ? `• Room ${room.room_number}` : ""}
-                    </span>
+                  {/* Location Info Box */}
+                  <div className="rounded-xl bg-slate-950 border border-slate-800/80 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-amber-400 shrink-0" />
+                      <span className="font-semibold text-white">
+                        {hostel?.name || "Hostel"}
+                        {hostel?.code ? ` (${hostel.code})` : ""}
+                        {room?.room_number ? ` → Room ${room.room_number}` : ""}
+                      </span>
+                    </div>
 
                     {issue.location_description && (
                       <span className="flex items-center gap-1 text-slate-400 text-[11px] italic">
-                        <MapPin className="h-3 w-3 text-slate-500" />
+                        <MapPin className="h-3 w-3 text-slate-500 shrink-0" />
                         {issue.location_description}
                       </span>
                     )}
                   </div>
 
-                  {/* Reporter & Date Footer */}
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-900">
-                    <span>
-                      Reported by:{" "}
-                      <strong className="text-slate-300">
-                        {reporter ? `${reporter.first_name} ${reporter.last_name}` : "Student"}
-                      </strong>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(issue.created_at).toLocaleDateString()}
-                    </span>
+                  {/* Reporter & Timestamps (Created & Updated) */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] text-slate-400 pt-2 border-t border-slate-900">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Reported: <strong className="text-slate-200">{formatDate(issue.created_at)}</strong></span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <History className="h-3.5 w-3.5 text-indigo-400" />
+                      <span>
+                        Last update:{" "}
+                        <strong className="text-slate-200">
+                          {isUpdatedLater ? formatDateTime(issue.updated_at) : formatDate(issue.created_at)}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {!isStudent && reporter && (
+                    <div className="text-[11px] text-slate-500 pt-1">
+                      Reporter Profile: <strong className="text-slate-300">{reporter.first_name} {reporter.last_name} ({reporter.email})</strong>
+                    </div>
+                  )}
+
+                  {/* View Details Action Link */}
+                  <div className="pt-2 border-t border-slate-900 flex justify-end">
+                    <Link href={`/issues/${issue.id}`}>
+                      <Button variant="outline" size="sm" className="gap-1.5 text-xs text-amber-400 border-amber-500/20 hover:bg-amber-500/10 hover:text-amber-300">
+                        View Details →
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -353,9 +511,11 @@ export function IssueList({
             <Wrench className="h-8 w-8" />
           </div>
           <div className="max-w-md space-y-1">
-            <h3 className="text-lg font-bold text-white">No Maintenance Issues Reported</h3>
+            <h3 className="text-lg font-bold text-white">No Maintenance Issues Reported Yet</h3>
             <p className="text-slate-400 text-sm">
-              You currently have 0 maintenance requests submitted. Click below if you need to report a repair or facility issue.
+              {isStudent
+                ? "You currently have no maintenance or repair tickets logged. Click below to submit a new report if you notice any facility issue."
+                : "No maintenance issues have been reported in the database."}
             </p>
           </div>
           <Button
@@ -363,27 +523,23 @@ export function IssueList({
             className="gap-2 mt-2 bg-amber-500 text-slate-950 hover:bg-amber-400 font-semibold"
           >
             <Plus className="h-4 w-4" />
-            Report First Maintenance Issue
+            Report New Maintenance Issue
           </Button>
         </div>
       ) : (
         /* Empty State: Filter returned 0 results */
         <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-10 text-center flex flex-col items-center justify-center space-y-3">
           <p className="text-slate-300 text-sm font-medium">
-            No maintenance issues match your search criteria.
+            No issues match your active filter criteria.
           </p>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              setSearchTerm("");
-              setStatusFilter("all");
-              setCategoryFilter("all");
-            }}
-            className="gap-1.5 text-xs"
+            onClick={resetAllFilters}
+            className="gap-1.5 text-xs text-amber-400 border-amber-500/30 hover:bg-amber-950/40"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Reset Filters
+            Clear & Reset Filters
           </Button>
         </div>
       )}

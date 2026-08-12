@@ -138,6 +138,73 @@ export async function getAllocationsAction(
 }
 
 /**
+ * Server Action: Fetch current user's active room allocation details
+ */
+export async function getMyActiveAllocationAction(): Promise<
+  AllocationActionResult<DetailedAllocation | null>
+> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return {
+      success: false,
+      error: "Unauthorized: User authentication required.",
+    };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allocationsTable = (supabase as any).from("room_allocations");
+
+  const { data, error } = await allocationsTable
+    .select(`
+      *,
+      student:profiles!room_allocations_student_id_fkey (id, first_name, last_name, email, roll_number, phone),
+      allocator:profiles!room_allocations_allocated_by_fkey (first_name, last_name),
+      bed:beds!room_allocations_bed_id_fkey (
+        id,
+        bed_label,
+        status,
+        room:rooms!beds_room_id_fkey (
+          id,
+          room_number,
+          room_type,
+          capacity,
+          monthly_rent,
+          status,
+          floor:floors!rooms_floor_id_fkey (
+            id,
+            floor_number,
+            name,
+            hostel:hostels!floors_hostel_id_fkey (
+              id,
+              name,
+              code,
+              address,
+              description
+            )
+          )
+        )
+      )
+    `)
+    .eq("student_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) {
+    return {
+      success: false,
+      error: `Failed to fetch active allocation: ${error.message}`,
+    };
+  }
+
+  return {
+    success: true,
+    data: (data as DetailedAllocation) || null,
+  };
+}
+
+/**
  * Server Action: Fetch unassigned student profiles
  */
 export async function getUnassignedStudentsAction(): Promise<

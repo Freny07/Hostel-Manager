@@ -23,6 +23,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { AssignStudentModal } from "./AssignStudentModal";
 import { ChangeAllocationModal } from "./ChangeAllocationModal";
 import { RemoveAllocationDialog } from "./RemoveAllocationDialog";
+import { StudentResidenceView } from "./StudentResidenceView";
 import {
   removeAllocationAction,
   type DetailedAllocation,
@@ -41,6 +42,15 @@ export function AllocationManagement({
   isStudentView = false,
 }: AllocationManagementProps) {
   const router = useRouter();
+
+  // Active student allocation & past allocations
+  const activeStudentAllocation = useMemo(() => {
+    return initialAllocations.find((a) => a.status === "active") || null;
+  }, [initialAllocations]);
+
+  const pastStudentAllocations = useMemo(() => {
+    return initialAllocations.filter((a) => a.status !== "active");
+  }, [initialAllocations]);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState("");
@@ -61,14 +71,7 @@ export function AllocationManagement({
     message: string;
   } | null>(null);
 
-  const showNotification = (type: "success" | "error", message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => {
-      setNotification((current) => (current?.message === message ? null : current));
-    }, 4000);
-  };
-
-  // Filtered Allocations
+  // Filtered Allocations (Admin/Warden search)
   const filteredAllocations = useMemo(() => {
     return initialAllocations.filter((alloc) => {
       const student = alloc.student;
@@ -89,6 +92,27 @@ export function AllocationManagement({
   const activeCount = useMemo(() => {
     return initialAllocations.filter((a) => a.status === "active").length;
   }, [initialAllocations]);
+
+  if (isStudentView) {
+    const studentInfo = activeStudentAllocation?.student || initialAllocations[0]?.student;
+
+    return (
+      <StudentResidenceView
+        activeAllocation={activeStudentAllocation}
+        pastAllocations={pastStudentAllocations}
+        studentName={studentInfo ? `${studentInfo.first_name} ${studentInfo.last_name}` : undefined}
+        rollNumber={studentInfo?.roll_number}
+        email={studentInfo?.email}
+      />
+    );
+  }
+
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => {
+      setNotification((current) => (current?.message === message ? null : current));
+    }, 4000);
+  };
 
   // Handlers
   const handleOpenChange = (alloc: DetailedAllocation) => {

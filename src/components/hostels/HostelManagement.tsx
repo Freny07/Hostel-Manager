@@ -17,6 +17,7 @@ import { HostelCard, type HostelWithCounts } from "./HostelCard";
 import { HostelFormModal } from "./HostelFormModal";
 import { HostelDetailsModal } from "./HostelDetailsModal";
 import { DeleteHostelDialog } from "./DeleteHostelDialog";
+import { HostelFloorsModal } from "./HostelFloorsModal";
 import {
   createHostelAction,
   updateHostelAction,
@@ -50,6 +51,9 @@ export function HostelManagement({
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedHostelForDelete, setSelectedHostelForDelete] = useState<HostelWithCounts | null>(null);
+
+  const [isFloorsOpen, setIsFloorsOpen] = useState(false);
+  const [selectedHostelForFloors, setSelectedHostelForFloors] = useState<HostelWithCounts | null>(null);
 
   // Notification State
   const [notification, setNotification] = useState<{
@@ -98,6 +102,11 @@ export function HostelManagement({
   const handleOpenDelete = (hostel: HostelWithCounts) => {
     setSelectedHostelForDelete(hostel);
     setIsDeleteOpen(true);
+  };
+
+  const handleOpenFloors = (hostel: HostelWithCounts) => {
+    setSelectedHostelForFloors(hostel);
+    setIsFloorsOpen(true);
   };
 
   const handleFormSubmit = async (
@@ -245,6 +254,7 @@ export function HostelManagement({
               onView={handleOpenDetails}
               onEdit={handleOpenEdit}
               onDelete={handleOpenDelete}
+              onManageFloors={handleOpenFloors}
             />
           ))}
         </div>
@@ -307,6 +317,14 @@ export function HostelManagement({
         onClose={() => setIsDeleteOpen(false)}
         hostel={selectedHostelForDelete}
         onConfirmDelete={handleDeleteConfirm}
+      />
+
+      <HostelFloorsModal
+        isOpen={isFloorsOpen}
+        onClose={() => setIsFloorsOpen(false)}
+        hostel={selectedHostelForFloors}
+        canManage={canManage}
+        onFloorsUpdated={() => router.refresh()}
       />
     </div>
   );

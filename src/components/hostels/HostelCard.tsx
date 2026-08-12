@@ -16,6 +16,7 @@ interface HostelCardProps {
   onView: (hostel: HostelWithCounts) => void;
   onEdit: (hostel: HostelWithCounts) => void;
   onDelete: (hostel: HostelWithCounts) => void;
+  onManageFloors: (hostel: HostelWithCounts) => void;
 }
 
 export function HostelCard({
@@ -24,6 +25,7 @@ export function HostelCard({
   onView,
   onEdit,
   onDelete,
+  onManageFloors,
 }: HostelCardProps) {
   const getGenderBadge = (gender: HostelRow["gender_type"]) => {
     switch (gender) {
@@ -99,6 +101,16 @@ export function HostelCard({
       </CardContent>
 
       <CardFooter className="pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onManageFloors(hostel)}
+          className="gap-1.5 text-xs text-indigo-300 border-indigo-500/30 hover:text-white hover:bg-indigo-950/40"
+        >
+          <Layers className="h-3.5 w-3.5 text-indigo-400" />
+          Floors
+        </Button>
+
         <Button
           variant="outline"
           size="sm"

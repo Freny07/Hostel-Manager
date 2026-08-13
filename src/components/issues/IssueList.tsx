@@ -32,6 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportIssueModal } from "./ReportIssueModal";
 import { UpdateStatusModal } from "./UpdateStatusModal";
 import { AssignStaffModal } from "./AssignStaffModal";
+import { AffectedStudentsBadge } from "./AffectedStudentsBadge";
 import { createBrowserClient } from "@/lib/supabase/client";
 import {
   getHostelsListAction,
@@ -522,9 +523,12 @@ export function IssueList({
                         <h3 className="text-base font-bold text-white tracking-tight leading-snug">
                           {issue.title}
                         </h3>
-                        <span className="text-[11px] text-slate-400 capitalize font-mono">
-                          Category: {issue.category.replace("_", " ")}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                          <span className="text-[11px] text-slate-400 capitalize font-mono">
+                            Category: {issue.category.replace("_", " ")}
+                          </span>
+                          <AffectedStudentsBadge issueId={issue.id} isStudent={isStudent} />
+                        </div>
                       </div>
                     </div>
 

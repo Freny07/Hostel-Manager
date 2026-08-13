@@ -1226,3 +1226,352 @@ export async function getIssueActivityTimelineAction(
 
   return { success: true, data: timelineEvents };
 }
+
+export interface DetailedIssueComment {
+  id: string;
+  issue_id: string;
+  author_id: string;
+  content: string;
+  is_internal: boolean;
+  created_at: string;
+  updated_at: string;
+  author?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    role?: {
+      name: string;
+    } | null;
+  } | null;
+}
+
+/**
+ * Server Action: Post a comment on a maintenance issue
+ */
+export async function addIssueCommentAction({
+  issueId,
+  content,
+  isInternal = false,
+}: {
+  issueId: string;
+  content: string;
+  isInternal?: boolean;
+}): Promise<IssueActionResult<DetailedIssueComment>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  const trimmedContent = content?.trim() || "";
+  if (!trimmedContent) {
+    return { success: false, error: "Comment content cannot be empty." };
+  }
+
+  if (trimmedContent.length > 2000) {
+    return {
+      success: false,
+      error: "Comment content exceeds the maximum allowed 2000 characters.",
+    };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+  const { data: issue } = await issuesTable
+    .select("id, reporter_id, status")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (!issue) {
+    return { success: false, error: "Target maintenance issue not found." };
+  }
+
+  // Authorization check: Students can ONLY comment on their own reported issues
+  if (role === "student" && issue.reporter_id !== user.id) {
+    return {
+      success: false,
+      error: "Unauthorized: You can only comment on issues reported by you.",
+    };
+  }
+
+  // Enforce that students cannot post internal staff notes
+  const effectiveIsInternal = role === "student" ? false : isInternal;
+
+  // Insert comment record
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const commentsTable = (supabase as any).from("issue_comments");
+  const { data: insertedComment, error: commentErr } = await commentsTable
+    .insert({
+      issue_id: issueId,
+      author_id: user.id,
+      content: trimmedContent,
+      is_internal: effectiveIsInternal,
+    })
+    .select(`
+      *,
+      author:profiles!issue_comments_author_id_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role:roles!profiles_role_id_fkey (name)
+      )
+    `)
+    .single();
+
+  if (commentErr) {
+    return {
+      success: false,
+      error: `Failed to post comment: ${commentErr.message}`,
+    };
+  }
+
+  // Log timeline event: progress_update
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesTable = (supabase as any).from("issue_updates");
+  await updatesTable.insert({
+    issue_id: issueId,
+    changed_by: user.id,
+    old_status: null,
+    new_status: issue.status || "reported",
+    event_type: "progress_update",
+    notes: `Added ${effectiveIsInternal ? "internal staff note" : "comment"}: "${trimmedContent.slice(0, 80)}${trimmedContent.length > 80 ? "..." : ""}"`,
+  });
+
+  revalidatePath(`/issues/${issueId}`);
+
+  return { success: true, data: insertedComment as DetailedIssueComment };
+}
+
+/**
+ * Server Action: Fetch comments for a maintenance issue
+ */
+export async function getIssueCommentsAction(
+  issueId: string
+): Promise<IssueActionResult<DetailedIssueComment[]>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const commentsTable = (supabase as any).from("issue_comments");
+
+  let query = commentsTable
+    .select(`
+      *,
+      author:profiles!issue_comments_author_id_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role:roles!profiles_role_id_fkey (name)
+      )
+    `)
+    .eq("issue_id", issueId);
+
+  // If user is student, hide internal staff notes
+  if (role === "student") {
+    query = query.eq("is_internal", false);
+  }
+
+  const { data: comments, error } = await query.order("created_at", {
+    ascending: true,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, data: (comments || []) as DetailedIssueComment[] };
+}
+
+/**
+ * Server Action: Delete an issue comment (Author or Staff ONLY)
+ */
+export async function deleteIssueCommentAction(
+  commentId: string
+): Promise<IssueActionResult<null>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!commentId) {
+    return { success: false, error: "Comment ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const commentsTable = (supabase as any).from("issue_comments");
+
+  const { data: comment } = await commentsTable
+    .select("id, issue_id, author_id")
+    .eq("id", commentId)
+    .maybeSingle();
+
+  if (!comment) {
+    return { success: false, error: "Comment record not found." };
+  }
+
+  // Authorization check: Author or staff/admin
+  const isAuthor = comment.author_id === user.id;
+  const isStaff = ["admin", "warden"].includes(role);
+
+  if (!isAuthor && !isStaff) {
+    return {
+      success: false,
+      error: "Unauthorized: You can only delete comments created by yourself.",
+    };
+  }
+
+  await commentsTable.delete().eq("id", commentId);
+
+  revalidatePath(`/issues/${comment.issue_id}`);
+
+  return { success: true, data: null };
+}
+
+export interface AffectedStudentInfo {
+  id: string;
+  student_id: string;
+  created_at: string;
+  student?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    roll_number?: string | null;
+  } | null;
+}
+
+export interface AffectedSummary {
+  count: number;
+  isUserAffected: boolean;
+  students: AffectedStudentInfo[];
+}
+
+/**
+ * Server Action: Toggle "I'm Affected Too" status for a student on an issue
+ */
+export async function toggleAffectedStatusAction(
+  issueId: string
+): Promise<IssueActionResult<{ isAffected: boolean; count: number }>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const affectedTable = (supabase as any).from("issue_affected_students");
+
+  // Check if student has already indicated affected status
+  const { data: existing } = await affectedTable
+    .select("id")
+    .eq("issue_id", issueId)
+    .eq("student_id", user.id)
+    .maybeSingle();
+
+  let isAffected = false;
+
+  if (existing) {
+    // Unmark / remove
+    await affectedTable.delete().eq("id", existing.id);
+    isAffected = false;
+  } else {
+    // Mark as affected
+    const { error: insertErr } = await affectedTable.insert({
+      issue_id: issueId,
+      student_id: user.id,
+    });
+
+    if (insertErr) {
+      return {
+        success: false,
+        error: `Failed to mark affected status: ${insertErr.message}`,
+      };
+    }
+    isAffected = true;
+  }
+
+  // Count total affected students for this issue
+  const { count } = await affectedTable
+    .select("id", { count: "exact", head: true })
+    .eq("issue_id", issueId);
+
+  revalidatePath("/issues");
+  revalidatePath(`/issues/${issueId}`);
+
+  return {
+    success: true,
+    data: { isAffected, count: count || 0 },
+  };
+}
+
+/**
+ * Server Action: Get affected count, caller affected status, and affected student list
+ */
+export async function getIssueAffectedDetailsAction(
+  issueId: string
+): Promise<IssueActionResult<AffectedSummary>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const affectedTable = (supabase as any).from("issue_affected_students");
+
+  const { data: records, error } = await affectedTable
+    .select(`
+      id,
+      student_id,
+      created_at,
+      student:profiles!issue_affected_students_student_id_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        roll_number
+      )
+    `)
+    .eq("issue_id", issueId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  const affectedList = (records || []) as AffectedStudentInfo[];
+  const isUserAffected = affectedList.some((item) => item.student_id === user.id);
+
+  return {
+    success: true,
+    data: {
+      count: affectedList.length,
+      isUserAffected,
+      students: affectedList,
+    },
+  };
+}

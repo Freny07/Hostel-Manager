@@ -31,6 +31,8 @@ import { UpdateStatusModal } from "./UpdateStatusModal";
 import { AssignStaffModal } from "./AssignStaffModal";
 import { IssueAttachmentsSection } from "./IssueAttachmentsSection";
 import { IssueActivityTimeline } from "./IssueActivityTimeline";
+import { IssueCommentsSection } from "./IssueCommentsSection";
+import { AffectedStudentsBadge } from "./AffectedStudentsBadge";
 import {
   claimIssueTaskAction,
   type DetailedIssue,
@@ -277,13 +279,16 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 border border-slate-800 text-2xl shadow-md">
             {getCategoryEmoji(issue.category)}
           </div>
-          <div>
+          <div className="space-y-1">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-snug">
               {issue.title}
             </h1>
-            <p className="text-xs text-slate-400 capitalize mt-1 font-mono">
-              Category: {issue.category.replace("_", " ")}
-            </p>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <p className="text-xs text-slate-400 capitalize font-mono">
+                Category: {issue.category.replace("_", " ")}
+              </p>
+              <AffectedStudentsBadge issueId={issue.id} isStudent={isStudent} />
+            </div>
           </div>
         </div>
       </div>
@@ -362,6 +367,9 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
 
           {/* Attachments Section */}
           <IssueAttachmentsSection issueId={issue.id} />
+
+          {/* Discussion & Comments Section */}
+          <IssueCommentsSection issueId={issue.id} isStudent={isStudent} />
 
           {/* Immutable Activity Timeline */}
           <IssueActivityTimeline issueId={issue.id} />

@@ -429,6 +429,18 @@ export async function createIssueAction(
     };
   }
 
+  // Log immutable timeline event: issue_created
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesTable = (supabase as any).from("issue_updates");
+  await updatesTable.insert({
+    issue_id: newIssue.id,
+    changed_by: user.id,
+    old_status: null,
+    new_status: "reported",
+    event_type: "issue_created",
+    notes: `Maintenance issue ticket reported under '${validation.sanitized.category}' category with ${validation.sanitized.priority} priority.`,
+  });
+
   revalidatePath("/issues");
   return {
     success: true,
@@ -544,6 +556,7 @@ export async function updateIssueStatusAction({
   }
 
   // Insert audit record into issue_updates
+  const eventType = newStatus === "resolved" ? "resolution" : "status_changed";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updatesTable = (supabase as any).from("issue_updates");
   await updatesTable.insert({
@@ -551,6 +564,7 @@ export async function updateIssueStatusAction({
     changed_by: user.id,
     old_status: currentStatus,
     new_status: newStatus,
+    event_type: eventType,
     notes: notes?.trim() || null,
   });
 
@@ -855,7 +869,19 @@ export async function assignIssueAction({
       changed_by: user.id,
       old_status: "reported",
       new_status: "assigned",
+      event_type: "assignment_changed",
       notes: notes?.trim() ? `Assigned staff: ${notes.trim()}` : "Issue assigned to maintenance staff.",
+    });
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatesTable = (supabase as any).from("issue_updates");
+    await updatesTable.insert({
+      issue_id: issueId,
+      changed_by: user.id,
+      old_status: currentIssue?.status || "assigned",
+      new_status: currentIssue?.status || "assigned",
+      event_type: "assignment_changed",
+      notes: notes?.trim() ? `Reassigned staff: ${notes.trim()}` : "Issue reassigned to maintenance staff.",
     });
   }
 
@@ -994,6 +1020,18 @@ export async function uploadIssueAttachmentAction(
     };
   }
 
+  // Log immutable timeline event: attachment_added
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesTable = (supabase as any).from("issue_updates");
+  await updatesTable.insert({
+    issue_id: issueId,
+    changed_by: user.id,
+    old_status: null,
+    new_status: issue.status || "reported",
+    event_type: "attachment_added",
+    notes: `Uploaded attachment file '${file.name}' (${(file.size / 1024).toFixed(1)} KB).`,
+  });
+
   // Generate 60-minute signed URL for immediate view
   const { data: signedData } = await supabase.storage
     .from("issue-attachments")
@@ -1108,4 +1146,83 @@ export async function deleteIssueAttachmentAction(
   revalidatePath(`/issues/${att.issue_id}`);
 
   return { success: true, data: null };
+}
+
+export type TimelineEventType =
+  | "issue_created"
+  | "status_changed"
+  | "assignment_changed"
+  | "priority_changed"
+  | "progress_update"
+  | "resolution"
+  | "attachment_added";
+
+export interface IssueTimelineEvent {
+  id: string;
+  issue_id: string;
+  event_type: TimelineEventType;
+  old_status?: string | null;
+  new_status?: string | null;
+  notes?: string | null;
+  created_at: string;
+  changed_by?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  } | null;
+}
+
+/**
+ * Server Action: Fetch chronological activity timeline events for an issue
+ */
+export async function getIssueActivityTimelineAction(
+  issueId: string,
+  sortAsc: boolean = true
+): Promise<IssueActionResult<IssueTimelineEvent[]>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesTable = (supabase as any).from("issue_updates");
+
+  const { data, error } = await updatesTable
+    .select(`
+      id,
+      issue_id,
+      event_type,
+      old_status,
+      new_status,
+      notes,
+      created_at,
+      changed_by:profiles!issue_updates_changed_by_fkey (id, first_name, last_name, email)
+    `)
+    .eq("issue_id", issueId)
+    .order("created_at", { ascending: sortAsc });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const timelineEvents: IssueTimelineEvent[] = (data || []).map((item: any) => ({
+    id: item.id,
+    issue_id: item.issue_id,
+    event_type: (item.event_type as TimelineEventType) || "status_changed",
+    old_status: item.old_status,
+    new_status: item.new_status,
+    notes: item.notes,
+    created_at: item.created_at,
+    changed_by: item.changed_by || null,
+  }));
+
+  return { success: true, data: timelineEvents };
 }

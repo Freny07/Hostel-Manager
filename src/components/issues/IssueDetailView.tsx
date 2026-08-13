@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@/lib/supabase/client";
 import {
   ArrowLeft,
   Wrench,
@@ -21,8 +22,6 @@ import {
   FileText,
   UserCheck,
   RefreshCw,
-  History,
-  CheckCircle2,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,13 +30,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UpdateStatusModal } from "./UpdateStatusModal";
 import { AssignStaffModal } from "./AssignStaffModal";
 import { IssueAttachmentsSection } from "./IssueAttachmentsSection";
+import { IssueActivityTimeline } from "./IssueActivityTimeline";
 import {
-  getIssueStatusHistoryAction,
   claimIssueTaskAction,
   type DetailedIssue,
-  type IssueUpdateHistory,
 } from "@/app/issues/issue-actions";
-import { STATUS_LABELS, type IssueStatus } from "@/lib/issues/workflow";
+import { type IssueStatus } from "@/lib/issues/workflow";
 
 interface IssueDetailViewProps {
   issue: DetailedIssue;
@@ -49,8 +47,6 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [history, setHistory] = useState<IssueUpdateHistory[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
   const hostel = issue.hostel;
   const room = issue.room;
@@ -59,27 +55,44 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
   const reporter = issue.reporter;
   const activeAssignment = issue.assignments?.find((a) => a.status === "active") || issue.assignments?.[0];
 
+  const [isClaiming, setIsClaiming] = useState(false);
+
+  // Scoped Supabase Realtime subscription for single issue
   useEffect(() => {
-    let isMounted = true;
-    getIssueStatusHistoryAction(issue.id)
-      .then((res) => {
-        if (!isMounted) return;
-        if (res.success && res.data) {
-          setHistory(res.data);
+    const supabase = createBrowserClient();
+
+    const channel = supabase
+      .channel(`realtime_issue_detail_${issue.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "issues",
+          filter: `id=eq.${issue.id}`,
+        },
+        () => {
+          router.refresh();
         }
-        setIsLoadingHistory(false);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        setIsLoadingHistory(false);
-      });
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "issue_assignments",
+          filter: `issue_id=eq.${issue.id}`,
+        },
+        () => {
+          router.refresh();
+        }
+      )
+      .subscribe();
 
     return () => {
-      isMounted = false;
+      supabase.removeChannel(channel);
     };
-  }, [issue.id]);
-
-  const [isClaiming, setIsClaiming] = useState(false);
+  }, [issue.id, router]);
 
   const handleClaimTask = async () => {
     setIsClaiming(true);
@@ -350,59 +363,8 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
           {/* Attachments Section */}
           <IssueAttachmentsSection issueId={issue.id} />
 
-          {/* Status Audit History Timeline */}
-          <Card className="glass-card border-slate-800">
-            <CardHeader className="border-b border-slate-800/80 pb-4">
-              <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                <History className="h-4 w-4 text-indigo-400" />
-                Status Transition Audit History
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-4">
-              {isLoadingHistory ? (
-                <p className="text-xs text-slate-400">Loading update logs...</p>
-              ) : history.length > 0 ? (
-                <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
-                  {history.map((item) => (
-                    <div key={item.id} className="relative space-y-1 text-xs">
-                      <div className="absolute -left-[23px] top-0.5 h-3.5 w-3.5 rounded-full bg-indigo-500 border-2 border-slate-900" />
-                      <div className="flex items-center justify-between text-slate-300">
-                        <span className="font-semibold text-white">
-                          Status changed to &quot;{STATUS_LABELS[item.new_status as IssueStatus] || item.new_status}&quot;
-                        </span>
-                        <span className="text-slate-500 font-mono text-[11px]">
-                          {formatDate(item.created_at)}
-                        </span>
-                      </div>
-
-                      <p className="text-slate-400">
-                        Changed by:{" "}
-                        <strong className="text-slate-300">
-                          {item.changed_by
-                            ? `${item.changed_by.first_name} ${item.changed_by.last_name}`
-                            : "Staff"}
-                        </strong>
-                        {item.old_status && (
-                          <span> (From: {STATUS_LABELS[item.old_status as IssueStatus] || item.old_status})</span>
-                        )}
-                      </p>
-
-                      {item.notes && (
-                        <div className="rounded-lg bg-slate-950 border border-slate-800/80 p-2.5 mt-1.5 text-slate-300 italic">
-                          &quot;{item.notes}&quot;
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-xs text-slate-400 flex items-center gap-2 py-2">
-                  <CheckCircle2 className="h-4 w-4 text-amber-400" />
-                  No status transitions recorded yet. Ticket is currently in initial status: <strong>{STATUS_LABELS[issue.status as IssueStatus] || issue.status}</strong>.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Immutable Activity Timeline */}
+          <IssueActivityTimeline issueId={issue.id} />
 
           {/* Assignment Information */}
           <Card className="glass-card border-slate-800">

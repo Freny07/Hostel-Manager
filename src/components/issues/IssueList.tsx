@@ -32,6 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportIssueModal } from "./ReportIssueModal";
 import { UpdateStatusModal } from "./UpdateStatusModal";
 import { AssignStaffModal } from "./AssignStaffModal";
+import { createBrowserClient } from "@/lib/supabase/client";
 import {
   getHostelsListAction,
   type DetailedIssue,
@@ -81,6 +82,41 @@ export function IssueList({
       setNotification((curr) => (curr?.message === message ? null : curr));
     }, 4000);
   };
+
+  // Supabase Realtime subscription for issues directory
+  useEffect(() => {
+    const supabase = createBrowserClient();
+
+    const channel = supabase
+      .channel("realtime_issues_directory")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "issues",
+        },
+        () => {
+          router.refresh();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "issue_assignments",
+        },
+        () => {
+          router.refresh();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   useEffect(() => {
     let isMounted = true;

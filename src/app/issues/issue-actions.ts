@@ -470,19 +470,37 @@ export async function updateIssueStatusAction({
     return { success: false, error: "Authentication required." };
   }
 
-  // RBAC enforcement: Only staff (admin, warden) can update status
-  if (!["admin", "warden"].includes(role)) {
-    return {
-      success: false,
-      error: "Unauthorized: Only hostel administration staff can update issue statuses.",
-    };
-  }
-
   if (!issueId) {
     return { success: false, error: "Issue ID is required." };
   }
 
   const supabase = await createServerClient();
+
+  // Authorization enforcement: Admin, Warden, or active assigned technician
+  const isStaffAdmin = ["admin", "warden"].includes(role);
+  let isAssignedTechnician = false;
+
+  if (!isStaffAdmin) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const assignmentsTable = (supabase as any).from("issue_assignments");
+    const { data: assignment } = await assignmentsTable
+      .select("id")
+      .eq("issue_id", issueId)
+      .eq("assigned_to", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    isAssignedTechnician = !!assignment;
+  }
+
+  if (!isStaffAdmin && !isAssignedTechnician) {
+    return {
+      success: false,
+      error:
+        "Unauthorized: Only authorized staff or assigned technicians can update this issue's status.",
+    };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const issuesTable = (supabase as any).from("issues");
 
@@ -538,6 +556,111 @@ export async function updateIssueStatusAction({
 
   revalidatePath("/issues");
   revalidatePath(`/issues/${issueId}`);
+
+  return { success: true, data: updatedIssue as IssueRow };
+}
+
+/**
+ * Server Action: Claim/Accept an issue task and move status to 'investigating'
+ */
+export async function claimIssueTaskAction({
+  issueId,
+  notes,
+}: {
+  issueId: string;
+  notes?: string;
+}): Promise<IssueActionResult<IssueRow>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (role === "student") {
+    return {
+      success: false,
+      error: "Unauthorized: Students cannot claim maintenance tasks.",
+    };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const assignmentsTable = (supabase as any).from("issue_assignments");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+
+  // Fetch current issue
+  const { data: currentIssue } = await issuesTable
+    .select("id, status")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (!currentIssue) {
+    return { success: false, error: "Issue record not found." };
+  }
+
+  // Verify if active assignment exists for another user
+  const { data: activeAssign } = await assignmentsTable
+    .select("id, assigned_to")
+    .eq("issue_id", issueId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!activeAssign) {
+    // Self-assign task
+    await assignmentsTable.insert({
+      issue_id: issueId,
+      assigned_to: user.id,
+      assigned_by: user.id,
+      status: "active",
+      notes: "Task claimed by technician.",
+      assigned_at: new Date().toISOString(),
+    });
+  }
+
+  const currentStatus = currentIssue.status as IssueStatus;
+  let targetStatus: IssueStatus = "investigating";
+
+  if (currentStatus === "reported" || currentStatus === "assigned") {
+    targetStatus = "investigating";
+  } else if (isValidStatusTransition(currentStatus, "investigating")) {
+    targetStatus = "investigating";
+  } else {
+    targetStatus = currentStatus;
+  }
+
+  // Update status to investigating if allowed
+  if (targetStatus !== currentStatus && isValidStatusTransition(currentStatus, targetStatus)) {
+    await issuesTable
+      .update({
+        status: targetStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", issueId);
+
+    // Insert audit log
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatesTable = (supabase as any).from("issue_updates");
+    await updatesTable.insert({
+      issue_id: issueId,
+      changed_by: user.id,
+      old_status: currentStatus,
+      new_status: targetStatus,
+      notes: notes?.trim() || "Technician claimed task and commenced investigation.",
+    });
+  }
+
+  revalidatePath("/issues");
+  revalidatePath(`/issues/${issueId}`);
+
+  const { data: updatedIssue } = await issuesTable
+    .select()
+    .eq("id", issueId)
+    .single();
 
   return { success: true, data: updatedIssue as IssueRow };
 }
@@ -738,6 +861,251 @@ export async function assignIssueAction({
 
   revalidatePath("/issues");
   revalidatePath(`/issues/${issueId}`);
+
+  return { success: true, data: null };
+}
+
+export interface AttachmentWithSignedUrl {
+  id: string;
+  issue_id: string;
+  uploader_id: string;
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  file_size: number | null;
+  created_at: string;
+  signed_url?: string | null;
+  uploader?: {
+    first_name: string;
+    last_name: string;
+  } | null;
+}
+
+/**
+ * Server Action: Upload file/image attachment for a maintenance issue
+ */
+export async function uploadIssueAttachmentAction(
+  formData: FormData
+): Promise<IssueActionResult<AttachmentWithSignedUrl>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  const issueId = formData.get("issueId") as string;
+  const file = formData.get("file") as File | null;
+
+  if (!issueId || !file) {
+    return { success: false, error: "Issue ID and valid file are required." };
+  }
+
+  const supabase = await createServerClient();
+
+  // Verify target issue exists and authorization
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+  const { data: issue } = await issuesTable
+    .select("id, reporter_id")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (!issue) {
+    return { success: false, error: "Target issue record not found." };
+  }
+
+  // Authorization check: Students can ONLY upload to their own reported issues
+  if (role === "student" && issue.reporter_id !== user.id) {
+    return { success: false, error: "Unauthorized access." };
+  }
+
+  // Server-side File Validation
+  const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+  if (file.size > MAX_SIZE) {
+    return {
+      success: false,
+      error: "File size exceeds the 5 MB maximum limit.",
+    };
+  }
+
+  const ALLOWED_MIME_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "application/pdf",
+  ];
+
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    return {
+      success: false,
+      error:
+        "Unsupported file type. Please upload a JPEG, PNG, WebP, GIF photo or PDF document.",
+    };
+  }
+
+  // Construct storage path: issueId/uploaderId_timestamp_filename
+  const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storagePath = `${issueId}/${user.id}_${Date.now()}_${sanitizedFileName}`;
+
+  // Read file ArrayBuffer
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Upload to Supabase Storage private bucket 'issue-attachments'
+  const { error: storageErr } = await supabase.storage
+    .from("issue-attachments")
+    .upload(storagePath, buffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (storageErr) {
+    return {
+      success: false,
+      error: `Storage upload failed: ${storageErr.message}`,
+    };
+  }
+
+  // Insert metadata record into public.issue_attachments
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const attachmentsTable = (supabase as any).from("issue_attachments");
+  const { data: insertedRecord, error: dbErr } = await attachmentsTable
+    .insert({
+      issue_id: issueId,
+      uploader_id: user.id,
+      file_name: file.name,
+      file_path: storagePath,
+      file_type: file.type,
+      file_size: file.size,
+    })
+    .select(`
+      *,
+      uploader:profiles!issue_attachments_uploader_id_fkey (first_name, last_name)
+    `)
+    .single();
+
+  if (dbErr) {
+    // Rollback storage upload if DB insert fails
+    await supabase.storage.from("issue-attachments").remove([storagePath]);
+    return {
+      success: false,
+      error: `Database metadata record failed: ${dbErr.message}`,
+    };
+  }
+
+  // Generate 60-minute signed URL for immediate view
+  const { data: signedData } = await supabase.storage
+    .from("issue-attachments")
+    .createSignedUrl(storagePath, 3600);
+
+  const resultAttachment: AttachmentWithSignedUrl = {
+    ...insertedRecord,
+    signed_url: signedData?.signedUrl || null,
+  };
+
+  revalidatePath(`/issues/${issueId}`);
+
+  return { success: true, data: resultAttachment };
+}
+
+/**
+ * Server Action: Fetch authorized attachments with signed access URLs for an issue
+ */
+export async function getIssueAttachmentsAction(
+  issueId: string
+): Promise<IssueActionResult<AttachmentWithSignedUrl[]>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const attachmentsTable = (supabase as any).from("issue_attachments");
+
+  const { data: records, error } = await attachmentsTable
+    .select(`
+      *,
+      uploader:profiles!issue_attachments_uploader_id_fkey (first_name, last_name)
+    `)
+    .eq("issue_id", issueId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Generate 60-minute signed access URLs for each file
+  const attachmentsWithUrls: AttachmentWithSignedUrl[] = await Promise.all(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (records || []).map(async (att: any) => {
+      const { data: signedData } = await supabase.storage
+        .from("issue-attachments")
+        .createSignedUrl(att.file_path, 3600);
+
+      return {
+        ...att,
+        signed_url: signedData?.signedUrl || null,
+      };
+    })
+  );
+
+  return { success: true, data: attachmentsWithUrls };
+}
+
+/**
+ * Server Action: Delete an issue attachment file (Uploader or Staff ONLY)
+ */
+export async function deleteIssueAttachmentAction(
+  attachmentId: string
+): Promise<IssueActionResult<null>> {
+  const { user, role } = await getUserRoleAndProfile();
+
+  if (!user || !role) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!attachmentId) {
+    return { success: false, error: "Attachment ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const attachmentsTable = (supabase as any).from("issue_attachments");
+
+  const { data: att } = await attachmentsTable
+    .select("id, issue_id, uploader_id, file_path")
+    .eq("id", attachmentId)
+    .maybeSingle();
+
+  if (!att) {
+    return { success: false, error: "Attachment record not found." };
+  }
+
+  // Authorization check: Uploader OR staff/admin
+  const isUploader = att.uploader_id === user.id;
+  const isStaff = ["admin", "warden"].includes(role);
+
+  if (!isUploader && !isStaff) {
+    return {
+      success: false,
+      error: "Unauthorized: You can only delete attachments uploaded by yourself.",
+    };
+  }
+
+  // Remove from Supabase Storage
+  await supabase.storage.from("issue-attachments").remove([att.file_path]);
+
+  // Remove from Database
+  await attachmentsTable.delete().eq("id", attachmentId);
+
+  revalidatePath(`/issues/${att.issue_id}`);
 
   return { success: true, data: null };
 }

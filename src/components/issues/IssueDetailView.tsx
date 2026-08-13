@@ -23,14 +23,17 @@ import {
   RefreshCw,
   History,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UpdateStatusModal } from "./UpdateStatusModal";
 import { AssignStaffModal } from "./AssignStaffModal";
+import { IssueAttachmentsSection } from "./IssueAttachmentsSection";
 import {
   getIssueStatusHistoryAction,
+  claimIssueTaskAction,
   type DetailedIssue,
   type IssueUpdateHistory,
 } from "@/app/issues/issue-actions";
@@ -75,6 +78,25 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
       isMounted = false;
     };
   }, [issue.id]);
+
+  const [isClaiming, setIsClaiming] = useState(false);
+
+  const handleClaimTask = async () => {
+    setIsClaiming(true);
+    try {
+      const res = await claimIssueTaskAction({
+        issueId: issue.id,
+        notes: "Technician claimed task and commenced investigation.",
+      });
+      if (res.success) {
+        router.refresh();
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   const getCategoryEmoji = (category: string) => {
     switch (category) {
@@ -189,7 +211,22 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
         </Link>
 
         {!isStudent && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {(issue.status === "reported" || issue.status === "assigned") && (
+              <Button
+                onClick={handleClaimTask}
+                disabled={isClaiming}
+                variant="outline"
+                className="gap-2 text-xs font-semibold border-amber-500/30 text-amber-300 hover:bg-amber-950/40 hover:text-white"
+              >
+                {isClaiming ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+                ) : (
+                  <Wrench className="h-4 w-4 text-amber-400" />
+                )}
+                Claim / Accept Task
+              </Button>
+            )}
             <Button
               onClick={() => setIsAssignModalOpen(true)}
               variant="outline"
@@ -309,6 +346,9 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
               )}
             </CardContent>
           </Card>
+
+          {/* Attachments Section */}
+          <IssueAttachmentsSection issueId={issue.id} />
 
           {/* Status Audit History Timeline */}
           <Card className="glass-card border-slate-800">

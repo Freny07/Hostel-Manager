@@ -5,6 +5,8 @@
  * Allowed flow: Reported -> Assigned -> Investigating -> Repair Scheduled -> Resolved
  */
 
+export type IssuePriority = "low" | "medium" | "high" | "urgent";
+
 export type IssueStatus =
   | "reported"
   | "assigned"

@@ -54,6 +54,10 @@ export interface DetailedIssue extends IssueRow {
     } | null;
   } | null;
   assignments?: IssueAssignmentDetail[];
+  sla_deadline?: string | null;
+  is_overdue?: boolean;
+  is_escalated?: boolean;
+  sla_breached_at?: string | null;
 }
 
 /**
@@ -1636,6 +1640,120 @@ export async function getIssueAffectedDetailsAction(
       count: affectedList.length,
       isUserAffected,
       students: affectedList,
+    },
+  };
+}
+
+/**
+ * Server Action: Background / Idempotent SLA Escalation Processor
+ * Scans active issues past SLA deadline that haven't been escalated yet.
+ */
+export async function processSlaEscalationsAction(): Promise<
+  IssueActionResult<{ processedCount: number; escalatedIssueIds: string[] }>
+> {
+  const supabase = await createServerClient();
+  const nowIso = new Date().toISOString();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+
+  // Query active (non-resolved) issues where sla_deadline < now AND is_escalated = false
+  const { data: overdueIssues, error } = await issuesTable
+    .select("id, title, priority, status, reporter_id, sla_deadline")
+    .neq("status", "resolved")
+    .eq("is_escalated", false)
+    .lt("sla_deadline", nowIso);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  if (!overdueIssues || overdueIssues.length === 0) {
+    return {
+      success: true,
+      data: { processedCount: 0, escalatedIssueIds: [] },
+    };
+  }
+
+  const escalatedIds: string[] = [];
+
+  // Fetch staff profiles for notification targets
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: staffProfiles } = await (supabase as any)
+    .from("profiles")
+    .select("id");
+
+  for (const issue of overdueIssues) {
+    // 1. Mark issue as overdue & escalated
+    const { error: updateErr } = await issuesTable
+      .update({
+        is_overdue: true,
+        is_escalated: true,
+        sla_breached_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq("id", issue.id);
+
+    if (updateErr) continue;
+
+    escalatedIds.push(issue.id);
+
+    // 2. Insert timeline record in issue_updates
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatesTable = (supabase as any).from("issue_updates");
+    await updatesTable.insert({
+      issue_id: issue.id,
+      changed_by: null,
+      old_status: issue.status,
+      new_status: issue.status,
+      event_type: "issue_escalated",
+      notes: `Automatic SLA breach escalation: Issue surpassed its ${issue.priority} priority resolution target.`,
+    });
+
+    // 3. Find active assigned technician (if any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const assignmentsTable = (supabase as any).from("issue_assignments");
+    const { data: assignment } = await assignmentsTable
+      .select("assigned_to")
+      .eq("issue_id", issue.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (assignment?.assigned_to) {
+      await createNotificationInternal({
+        userId: assignment.assigned_to,
+        title: "🚨 SLA Deadline Breached",
+        message: `Assigned ticket '${issue.title}' has breached its SLA deadline and was escalated to management.`,
+        type: "issue_escalated",
+        issueId: issue.id,
+      });
+    }
+
+    // 4. Notify staff & wardens
+    if (staffProfiles && Array.isArray(staffProfiles)) {
+      for (const staff of staffProfiles) {
+        if (staff.id !== assignment?.assigned_to) {
+          await createNotificationInternal({
+            userId: staff.id,
+            title: "🚨 Urgent SLA Breach Escalated",
+            message: `Ticket '${issue.title}' (${issue.priority.toUpperCase()} priority) breached SLA resolution deadline.`,
+            type: "issue_escalated",
+            issueId: issue.id,
+          });
+        }
+      }
+    }
+
+    revalidatePath(`/issues/${issue.id}`);
+  }
+
+  revalidatePath("/issues");
+
+  return {
+    success: true,
+    data: {
+      processedCount: escalatedIds.length,
+      escalatedIssueIds: escalatedIds,
     },
   };
 }

@@ -33,6 +33,8 @@ import { IssueAttachmentsSection } from "./IssueAttachmentsSection";
 import { IssueActivityTimeline } from "./IssueActivityTimeline";
 import { IssueCommentsSection } from "./IssueCommentsSection";
 import { AffectedStudentsBadge } from "./AffectedStudentsBadge";
+import { SlaBadge } from "./SlaBadge";
+import { getSlaInfo } from "@/lib/issues/sla";
 import {
   claimIssueTaskAction,
   type DetailedIssue,
@@ -56,6 +58,14 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
   const floor = (room as any)?.floor;
   const reporter = issue.reporter;
   const activeAssignment = issue.assignments?.find((a) => a.status === "active") || issue.assignments?.[0];
+
+  const slaInfo = getSlaInfo({
+    created_at: issue.created_at,
+    priority: issue.priority,
+    status: issue.status,
+    sla_deadline: issue.sla_deadline,
+    updated_at: issue.updated_at,
+  });
 
   const [isClaiming, setIsClaiming] = useState(false);
 
@@ -269,9 +279,21 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
             <span>Ticket ID: {issue.id.slice(0, 13)}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {issue.is_escalated && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800 shadow-md animate-pulse">
+                🚨 ESCALATED
+              </span>
+            )}
             {getStatusBadge(issue.status)}
             {getPriorityBadge(issue.priority)}
+            <SlaBadge
+              createdAt={issue.created_at}
+              priority={issue.priority}
+              status={issue.status}
+              slaDeadline={issue.sla_deadline}
+              updatedAt={issue.updated_at}
+            />
           </div>
         </div>
 
@@ -440,6 +462,44 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
 
         {/* Right Column (Sidebar Meta) */}
         <div className="space-y-6">
+          {/* SLA Tracking Card */}
+          <Card className="glass-card border-slate-800">
+            <CardHeader className="border-b border-slate-800/80 pb-4">
+              <CardTitle className="text-base font-bold text-white flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-indigo-400" />
+                  <span>SLA Target & Status</span>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-3 text-xs">
+              <div className="flex items-center justify-between py-1 border-b border-slate-900">
+                <span className="text-slate-400 font-mono">Priority Target:</span>
+                <span className="font-semibold text-white capitalize">
+                  {issue.priority} ({slaInfo.targetMinutes < 60 ? `${slaInfo.targetMinutes}m` : `${slaInfo.targetMinutes / 60}h`})
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-1 border-b border-slate-900">
+                <span className="text-slate-400 font-mono">Target Deadline:</span>
+                <span className="font-mono text-slate-200">
+                  {formatDate(slaInfo.deadline.toISOString())}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-1">
+                <span className="text-slate-400 font-mono">Current Status:</span>
+                <SlaBadge
+                  createdAt={issue.created_at}
+                  priority={issue.priority}
+                  status={issue.status}
+                  slaDeadline={issue.sla_deadline}
+                  updatedAt={issue.updated_at}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Reporter Profile */}
           <Card className="glass-card border-slate-800">
             <CardHeader className="border-b border-slate-800/80 pb-4">

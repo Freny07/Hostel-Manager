@@ -33,6 +33,8 @@ import { ReportIssueModal } from "./ReportIssueModal";
 import { UpdateStatusModal } from "./UpdateStatusModal";
 import { AssignStaffModal } from "./AssignStaffModal";
 import { AffectedStudentsBadge } from "./AffectedStudentsBadge";
+import { SlaBadge } from "./SlaBadge";
+import { getSlaInfo } from "@/lib/issues/sla";
 import { createBrowserClient } from "@/lib/supabase/client";
 import {
   getHostelsListAction,
@@ -66,6 +68,7 @@ export function IssueList({
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [hostelFilter, setHostelFilter] = useState<string>("all");
+  const [slaFilter, setSlaFilter] = useState<string>("all");
 
   // Modal & Toast state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -149,9 +152,26 @@ export function IssueList({
       const matchesCategory = categoryFilter === "all" || issue.category === categoryFilter;
       const matchesHostel = hostelFilter === "all" || issue.hostel_id === hostelFilter;
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesHostel;
+      const sla = getSlaInfo({
+        created_at: issue.created_at,
+        priority: issue.priority,
+        status: issue.status,
+        sla_deadline: issue.sla_deadline,
+        updated_at: issue.updated_at,
+      });
+
+      let matchesSla = true;
+      if (slaFilter === "overdue") {
+        matchesSla = sla.isOverdue;
+      } else if (slaFilter === "at_risk") {
+        matchesSla = sla.status === "at_risk";
+      } else if (slaFilter === "within_sla") {
+        matchesSla = sla.status === "within_sla" || sla.status === "resolved_within_sla";
+      }
+
+      return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesHostel && matchesSla;
     });
-  }, [initialIssues, searchTerm, statusFilter, priorityFilter, categoryFilter, hostelFilter]);
+  }, [initialIssues, searchTerm, statusFilter, priorityFilter, categoryFilter, hostelFilter, slaFilter]);
 
   // Summary Statistics
   const openIssuesCount = useMemo(() => {
@@ -495,6 +515,24 @@ export function IssueList({
               <option value="other">📌 Other General</option>
             </select>
           </div>
+
+          {/* SLA Filter */}
+          <div className="space-y-1">
+            <label htmlFor="sla_filter" className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Clock className="h-3 w-3 text-rose-400" /> SLA Target Filter
+            </label>
+            <select
+              id="sla_filter"
+              value={slaFilter}
+              onChange={(e) => setSlaFilter(e.target.value)}
+              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs text-slate-200 focus:border-amber-500 focus:outline-none"
+            >
+              <option value="all">All SLA Statuses</option>
+              <option value="overdue">🚨 OVERDUE Breaches</option>
+              <option value="at_risk">⚠️ At Risk (&lt; 25% Time Left)</option>
+              <option value="within_sla">✓ Within SLA Target</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -533,8 +571,24 @@ export function IssueList({
                     </div>
 
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      {getStatusBadge(issue.status)}
-                      {getPriorityBadge(issue.priority)}
+                      <div className="flex items-center gap-1.5">
+                        {issue.is_escalated && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800 animate-pulse">
+                            🚨 ESCALATED
+                          </span>
+                        )}
+                        {getStatusBadge(issue.status)}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {getPriorityBadge(issue.priority)}
+                        <SlaBadge
+                          createdAt={issue.created_at}
+                          priority={issue.priority}
+                          status={issue.status}
+                          slaDeadline={issue.sla_deadline}
+                          updatedAt={issue.updated_at}
+                        />
+                      </div>
                     </div>
                   </div>
 

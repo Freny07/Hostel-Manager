@@ -6,6 +6,11 @@ import { getUserRoleAndProfile } from "@/lib/rbac/auth-checks";
 import type { Database } from "@/lib/supabase/types";
 import { isValidStatusTransition, type IssueStatus } from "@/lib/issues/workflow";
 import { createNotificationInternal } from "@/app/notifications/notification-actions";
+import {
+  fetchTextEmbedding,
+  calculateCosineSimilarity,
+  computeCompositeSimilarity,
+} from "@/lib/ml/similarity";
 
 export type IssueRow = Database["public"]["Tables"]["issues"]["Row"];
 
@@ -466,6 +471,9 @@ export async function createIssueAction(
       }
     }
   }
+
+  // Trigger background ML similarity analysis
+  analyzeRelatedIssuesAction(newIssue.id).catch(() => {});
 
   revalidatePath("/issues");
   return {
@@ -1756,4 +1764,244 @@ export async function processSlaEscalationsAction(): Promise<
       escalatedIssueIds: escalatedIds,
     },
   };
+}
+
+export interface IssueRelationSuggestion {
+  id: string;
+  source_issue_id: string;
+  target_issue_id: string;
+  similarity_score: number;
+  relation_type: "suggested_duplicate" | "confirmed_related" | "dismissed";
+  created_at: string;
+  target_issue?: {
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    status: string;
+    priority: string;
+    created_at: string;
+    hostel?: { name: string; code: string } | null;
+    room?: { room_number: string } | null;
+  } | null;
+}
+
+/**
+ * Server Action: Analyze an issue against existing active issues using ML embeddings & similarity scoring.
+ */
+export async function analyzeRelatedIssuesAction(
+  issueId: string
+): Promise<IssueActionResult<number>> {
+  if (!issueId) return { success: false, error: "Issue ID is required." };
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+
+  // 1. Fetch source issue
+  const { data: sourceIssue } = await issuesTable
+    .select("id, title, description, category, hostel_id, room_id")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (!sourceIssue || !sourceIssue.description) {
+    return { success: true, data: 0 };
+  }
+
+  // 2. Fetch source issue embedding from Python ML Service
+  const sourceEmbedding = await fetchTextEmbedding(
+    sourceIssue.title || "",
+    sourceIssue.description
+  );
+
+  if (!sourceEmbedding) {
+    // Graceful fallback if ML service is offline
+    return { success: true, data: 0 };
+  }
+
+  // 3. Fetch candidate active issues (non-resolved, non-source)
+  const { data: candidateIssues } = await issuesTable
+    .select("id, title, description, category, hostel_id, room_id")
+    .neq("id", issueId)
+    .neq("status", "resolved")
+    .limit(30);
+
+  if (!candidateIssues || candidateIssues.length === 0) {
+    return { success: true, data: 0 };
+  }
+
+  let suggestionsFound = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const relationsTable = (supabase as any).from("issue_relations");
+
+  // 4. Compare source against each candidate
+  for (const candidate of candidateIssues) {
+    const candidateEmbedding = await fetchTextEmbedding(
+      candidate.title || "",
+      candidate.description || ""
+    );
+
+    if (!candidateEmbedding) continue;
+
+    const baseCosine = calculateCosineSimilarity(sourceEmbedding, candidateEmbedding);
+    const sameCategory = sourceIssue.category === candidate.category;
+    const sameRoom = Boolean(sourceIssue.room_id && sourceIssue.room_id === candidate.room_id);
+    const sameHostel = Boolean(sourceIssue.hostel_id && sourceIssue.hostel_id === candidate.hostel_id);
+
+    const score = computeCompositeSimilarity({
+      baseSimilarity: baseCosine,
+      sameCategory,
+      sameRoom,
+      sameHostel,
+    });
+
+    // If similarity score >= 0.65, record suggestion
+    if (score >= 0.65) {
+      await relationsTable.upsert(
+        {
+          source_issue_id: issueId,
+          target_issue_id: candidate.id,
+          similarity_score: Math.round(score * 100) / 100,
+          relation_type: "suggested_duplicate",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "source_issue_id,target_issue_id" }
+      );
+      suggestionsFound++;
+    }
+  }
+
+  revalidatePath(`/issues/${issueId}`);
+  return { success: true, data: suggestionsFound };
+}
+
+/**
+ * Server Action: Get related issue suggestions for staff review
+ */
+export async function getRelatedIssueSuggestionsAction(
+  issueId: string
+): Promise<IssueActionResult<IssueRelationSuggestion[]>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const relationsTable = (supabase as any).from("issue_relations");
+
+  const { data: records, error } = await relationsTable
+    .select(`
+      id,
+      source_issue_id,
+      target_issue_id,
+      similarity_score,
+      relation_type,
+      created_at,
+      target_issue:issues!issue_relations_target_issue_id_fkey (
+        id,
+        title,
+        description,
+        category,
+        status,
+        priority,
+        created_at,
+        hostel:hostels!issues_hostel_id_fkey (name, code),
+        room:rooms!issues_room_id_fkey (room_number)
+      )
+    `)
+    .eq("source_issue_id", issueId)
+    .neq("relation_type", "dismissed")
+    .order("similarity_score", { ascending: false });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, data: (records || []) as IssueRelationSuggestion[] };
+}
+
+/**
+ * Server Action: Confirm a suggested related issue
+ */
+export async function confirmRelatedIssueAction(
+  relationId: string
+): Promise<IssueActionResult<null>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!relationId) {
+    return { success: false, error: "Relation ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const relationsTable = (supabase as any).from("issue_relations");
+
+  const { data: rel } = await relationsTable
+    .select("id, source_issue_id")
+    .eq("id", relationId)
+    .maybeSingle();
+
+  if (!rel) {
+    return { success: false, error: "Relation record not found." };
+  }
+
+  await relationsTable
+    .update({
+      relation_type: "confirmed_related",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", relationId);
+
+  revalidatePath(`/issues/${rel.source_issue_id}`);
+  return { success: true, data: null };
+}
+
+/**
+ * Server Action: Dismiss a suggested related issue
+ */
+export async function dismissRelatedIssueAction(
+  relationId: string
+): Promise<IssueActionResult<null>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!relationId) {
+    return { success: false, error: "Relation ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const relationsTable = (supabase as any).from("issue_relations");
+
+  const { data: rel } = await relationsTable
+    .select("id, source_issue_id")
+    .eq("id", relationId)
+    .maybeSingle();
+
+  if (!rel) {
+    return { success: false, error: "Relation record not found." };
+  }
+
+  await relationsTable
+    .update({
+      relation_type: "dismissed",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", relationId);
+
+  revalidatePath(`/issues/${rel.source_issue_id}`);
+  return { success: true, data: null };
 }

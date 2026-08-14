@@ -34,6 +34,7 @@ import { IssueActivityTimeline } from "./IssueActivityTimeline";
 import { IssueCommentsSection } from "./IssueCommentsSection";
 import { AffectedStudentsBadge } from "./AffectedStudentsBadge";
 import { SlaBadge } from "./SlaBadge";
+import { RelatedIssuesSuggestions } from "./RelatedIssuesSuggestions";
 import { getSlaInfo } from "@/lib/issues/sla";
 import {
   claimIssueTaskAction,
@@ -386,6 +387,9 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
               )}
             </CardContent>
           </Card>
+
+          {/* ML Related Issues Suggestions (Staff / Wardens ONLY) */}
+          {!isStudent && <RelatedIssuesSuggestions issueId={issue.id} />}
 
           {/* Attachments Section */}
           <IssueAttachmentsSection issueId={issue.id} />

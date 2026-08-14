@@ -2005,3 +2005,81 @@ export async function dismissRelatedIssueAction(
   revalidatePath(`/issues/${rel.source_issue_id}`);
   return { success: true, data: null };
 }
+
+/**
+ * Server Action: Deterministically detects whether an issue is part of a recurring pattern.
+ */
+export async function detectRecurringIssueAction(
+  issueId: string
+): Promise<IssueActionResult<import("@/lib/issues/recurring-detector").RecurringAnalysisResult>> {
+  const { user } = await getUserRoleAndProfile();
+
+  if (!user) {
+    return { success: false, error: "Authentication required." };
+  }
+
+  if (!issueId) {
+    return { success: false, error: "Issue ID is required." };
+  }
+
+  const supabase = await createServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const issuesTable = (supabase as any).from("issues");
+
+  // 1. Fetch target issue
+  const { data: targetIssue, error: targetErr } = await issuesTable
+    .select(`
+      id,
+      room_id,
+      hostel_id,
+      category,
+      created_at,
+      title,
+      status,
+      priority,
+      room:rooms!issues_room_id_fkey(room_number),
+      hostel:hostels!issues_hostel_id_fkey(name)
+    `)
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (targetErr || !targetIssue) {
+    return { success: false, error: targetErr?.message || "Issue not found." };
+  }
+
+  // 2. Query historical issues for the same room or hostel
+  let query = issuesTable
+    .select(`
+      id,
+      room_id,
+      hostel_id,
+      category,
+      created_at,
+      title,
+      status,
+      priority,
+      room:rooms!issues_room_id_fkey(room_number),
+      hostel:hostels!issues_hostel_id_fkey(name)
+    `)
+    .neq("id", issueId);
+
+  if (targetIssue.room_id) {
+    query = query.eq("room_id", targetIssue.room_id);
+  } else if (targetIssue.hostel_id) {
+    query = query.eq("hostel_id", targetIssue.hostel_id);
+  } else {
+    // If no room or hostel, return default no recurrence
+    const { analyzeRecurringPattern } = await import("@/lib/issues/recurring-detector");
+    return {
+      success: true,
+      data: analyzeRecurringPattern(targetIssue, []),
+    };
+  }
+
+  const { data: history } = await query.order("created_at", { ascending: false }).limit(50);
+
+  const { analyzeRecurringPattern } = await import("@/lib/issues/recurring-detector");
+  const result = analyzeRecurringPattern(targetIssue, history || []);
+
+  return { success: true, data: result };
+}

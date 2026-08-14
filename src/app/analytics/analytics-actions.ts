@@ -29,6 +29,15 @@ export interface TrendMetric {
   count: number;
 }
 
+export interface RecurringHotspotMetric {
+  locationName: string;
+  category: string;
+  count60Days: number;
+  latestTicketTitle: string;
+  latestCreated: string;
+  confidence: "high" | "moderate";
+}
+
 export interface AnalyticsData {
   totalStudents: number;
   totalCapacityBeds: number;
@@ -48,6 +57,7 @@ export interface AnalyticsData {
   hostelMetrics: HostelMetric[];
   staffWorkloadMetrics: StaffWorkloadMetric[];
   trendMetrics: TrendMetric[];
+  recurringHotspots: RecurringHotspotMetric[];
 }
 
 export interface AnalyticsActionResult<T> {
@@ -102,7 +112,7 @@ export async function getAdminAnalyticsDataAction(): Promise<
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const issuesTable = (supabase as any).from("issues");
     const { data: issuesData, error: issuesErr } = await issuesTable.select(
-      "id, category, status, priority, is_overdue, is_escalated, sla_deadline, created_at, updated_at, hostel_id, hostel:hostels!issues_hostel_id_fkey(id, name)"
+      "id, title, category, status, priority, is_overdue, is_escalated, sla_deadline, created_at, updated_at, hostel_id, room_id, hostel:hostels!issues_hostel_id_fkey(id, name), room:rooms!issues_room_id_fkey(room_number)"
     );
 
     if (issuesErr) {
@@ -246,6 +256,49 @@ export async function getAdminAnalyticsDataAction(): Promise<
     }));
     staffWorkloadMetrics.sort((a, b) => b.activeAssignments - a.activeAssignments);
 
+    // 5. Compute Recurring Issue Hotspots (locations with >= 2 issues in last 60 days)
+    const hotspotGroups: Record<
+      string,
+      { locationName: string; category: string; count: number; latestTitle: string; latestCreated: string }
+    > = {};
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    allIssues.forEach((issue: any) => {
+      if (!issue.created_at) return;
+      const createdMs = new Date(issue.created_at).getTime();
+      const diffDays = (now - createdMs) / (1000 * 3600 * 24);
+      if (diffDays > 60) return; // 60-day window
+
+      const locName = issue.room?.room_number
+        ? `Room ${issue.room.room_number}`
+        : issue.hostel?.name || "General Facility";
+      const cat = issue.category || "maintenance";
+      const key = `${locName}_${cat}`;
+
+      if (!hotspotGroups[key]) {
+        hotspotGroups[key] = {
+          locationName: locName,
+          category: cat,
+          count: 0,
+          latestTitle: issue.title,
+          latestCreated: issue.created_at,
+        };
+      }
+      hotspotGroups[key].count++;
+    });
+
+    const recurringHotspots: RecurringHotspotMetric[] = Object.values(hotspotGroups)
+      .filter((h) => h.count >= 2)
+      .map((h) => ({
+        locationName: h.locationName,
+        category: h.category,
+        count60Days: h.count,
+        latestTicketTitle: h.latestTitle,
+        latestCreated: h.latestCreated,
+        confidence: (h.count >= 3 ? "high" : "moderate") as "high" | "moderate",
+      }))
+      .sort((a, b) => b.count60Days - a.count60Days);
+
     return {
       success: true,
       data: {
@@ -264,6 +317,7 @@ export async function getAdminAnalyticsDataAction(): Promise<
         hostelMetrics,
         staffWorkloadMetrics,
         trendMetrics,
+        recurringHotspots,
       },
     };
   } catch (err) {

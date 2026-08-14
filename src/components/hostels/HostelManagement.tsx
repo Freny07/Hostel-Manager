@@ -18,6 +18,8 @@ import { HostelFormModal } from "./HostelFormModal";
 import { HostelDetailsModal } from "./HostelDetailsModal";
 import { DeleteHostelDialog } from "./DeleteHostelDialog";
 import { HostelFloorsModal } from "./HostelFloorsModal";
+import { HostelVisualMap } from "./HostelVisualMap";
+import { LayoutGrid, Map } from "lucide-react";
 import {
   createHostelAction,
   updateHostelAction,
@@ -37,6 +39,9 @@ export function HostelManagement({
   canManage,
 }: HostelManagementProps) {
   const router = useRouter();
+
+  // View Mode State
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState("");
@@ -184,118 +189,156 @@ export function HostelManagement({
           </p>
         </div>
 
-        {canManage && (
-          <Button
-            onClick={handleOpenCreate}
-            size="lg"
-            className="gap-2 self-start md:self-auto bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-indigo-600/20"
-          >
-            <Plus className="h-4 w-4" />
-            Add New Hostel
-          </Button>
-        )}
-      </div>
-
-      {/* Control Bar: Search & Gender Filter */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Search */}
-        <div className="relative w-full sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-          <Input
-            placeholder="Search by hostel name, code, or location..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-slate-900/80 border-slate-800 focus:border-indigo-500 text-slate-100 placeholder:text-slate-500"
-          />
-          {searchTerm && (
+        <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
+          {/* View Mode Toggle Buttons */}
+          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1">
             <button
-              onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Gender Filter Tabs */}
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0 font-medium">
-            <Filter className="h-3.5 w-3.5" /> Filter:
-          </span>
-          {[
-            { id: "all", label: "All Types" },
-            { id: "co-ed", label: "Co-Ed" },
-            { id: "male", label: "Male" },
-            { id: "female", label: "Female" },
-          ].map((type) => (
-            <button
-              key={type.id}
-              onClick={() => setGenderFilter(type.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 ${
-                genderFilter === type.id
-                  ? "bg-violet-600 text-white shadow-sm"
-                  : "bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800"
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === "list"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "text-slate-400 hover:text-white"
               }`}
             >
-              {type.label}
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Directory
             </button>
-          ))}
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={() => setViewMode("map")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === "map"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Map className="h-3.5 w-3.5" />
+              Visual Floor Map
+            </button>
+          </div>
 
-      {/* Hostels Grid or Empty State */}
-      {filteredHostels.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredHostels.map((hostel) => (
-            <HostelCard
-              key={hostel.id}
-              hostel={hostel}
-              canManage={canManage}
-              onView={handleOpenDetails}
-              onEdit={handleOpenEdit}
-              onDelete={handleOpenDelete}
-              onManageFloors={handleOpenFloors}
-            />
-          ))}
-        </div>
-      ) : initialHostels.length === 0 ? (
-        /* Empty State: No Hostels Exist */
-        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center flex flex-col items-center justify-center space-y-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-400 border border-violet-500/20">
-            <Building2 className="h-8 w-8" />
-          </div>
-          <div className="max-w-md space-y-1">
-            <h3 className="text-lg font-bold text-white">No Hostels Registered Yet</h3>
-            <p className="text-slate-400 text-sm">
-              Get started by creating your campus accommodation halls. Define building names, unique codes, and floor counts.
-            </p>
-          </div>
           {canManage && (
-            <Button onClick={handleOpenCreate} className="gap-2 mt-2">
+            <Button
+              onClick={handleOpenCreate}
+              size="lg"
+              className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+            >
               <Plus className="h-4 w-4" />
-              Create First Hostel
+              Add New Hostel
             </Button>
           )}
         </div>
+      </div>
+
+      {viewMode === "map" ? (
+        /* Visual Architectural Floor Map Mode */
+        <HostelVisualMap />
       ) : (
-        /* Empty State: Filter Returned No Matches */
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-10 text-center flex flex-col items-center justify-center space-y-3">
-          <p className="text-slate-300 text-sm font-medium">
-            No hostels match your active filter criteria &quot;{searchTerm || genderFilter}&quot;.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setSearchTerm("");
-              setGenderFilter("all");
-            }}
-            className="gap-1.5 text-xs"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Reset Search Filters
-          </Button>
-        </div>
+        /* Standard Directory List Mode */
+        <>
+          {/* Control Bar: Search & Gender Filter */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* Search */}
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+              <Input
+                placeholder="Search by hostel name, code, or location..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 bg-slate-900/80 border-slate-800 focus:border-indigo-500 text-slate-100 placeholder:text-slate-500"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-white"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Gender Filter Tabs */}
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+              <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0 font-medium">
+                <Filter className="h-3.5 w-3.5" /> Filter:
+              </span>
+              {[
+                { id: "all", label: "All Types" },
+                { id: "co-ed", label: "Co-Ed" },
+                { id: "male", label: "Male" },
+                { id: "female", label: "Female" },
+              ].map((type) => (
+                <button
+                  key={type.id}
+                  onClick={() => setGenderFilter(type.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+                    genderFilter === type.id
+                      ? "bg-violet-600 text-white shadow-sm"
+                      : "bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Hostels Grid or Empty State */}
+          {filteredHostels.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredHostels.map((hostel) => (
+                <HostelCard
+                  key={hostel.id}
+                  hostel={hostel}
+                  canManage={canManage}
+                  onView={handleOpenDetails}
+                  onEdit={handleOpenEdit}
+                  onDelete={handleOpenDelete}
+                  onManageFloors={handleOpenFloors}
+                />
+              ))}
+            </div>
+          ) : initialHostels.length === 0 ? (
+            /* Empty State: No Hostels Exist */
+            <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center flex flex-col items-center justify-center space-y-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-400 border border-violet-500/20">
+                <Building2 className="h-8 w-8" />
+              </div>
+              <div className="max-w-md space-y-1">
+                <h3 className="text-lg font-bold text-white">No Hostels Registered Yet</h3>
+                <p className="text-slate-400 text-sm">
+                  Get started by creating your campus accommodation halls. Define building names, unique codes, and floor counts.
+                </p>
+              </div>
+              {canManage && (
+                <Button onClick={handleOpenCreate} className="gap-2 mt-2">
+                  <Plus className="h-4 w-4" />
+                  Create First Hostel
+                </Button>
+              )}
+            </div>
+          ) : (
+            /* Empty State: Filter Returned No Matches */
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-10 text-center flex flex-col items-center justify-center space-y-3">
+              <p className="text-slate-300 text-sm font-medium">
+                No hostels match your active filter criteria &quot;{searchTerm || genderFilter}&quot;.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm("");
+                  setGenderFilter("all");
+                }}
+                className="gap-1.5 text-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Reset Search Filters
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modals */}

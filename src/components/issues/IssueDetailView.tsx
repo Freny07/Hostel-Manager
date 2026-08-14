@@ -35,6 +35,7 @@ import { IssueCommentsSection } from "./IssueCommentsSection";
 import { AffectedStudentsBadge } from "./AffectedStudentsBadge";
 import { SlaBadge } from "./SlaBadge";
 import { RelatedIssuesSuggestions } from "./RelatedIssuesSuggestions";
+import { RecurringIssueBadge } from "./RecurringIssueBadge";
 import { getSlaInfo } from "@/lib/issues/sla";
 import {
   claimIssueTaskAction,
@@ -387,6 +388,9 @@ export function IssueDetailView({ issue, isStudent }: IssueDetailViewProps) {
               )}
             </CardContent>
           </Card>
+
+          {/* Recurring Issue Detection Banner (Staff / Wardens ONLY) */}
+          {!isStudent && <RecurringIssueBadge issueId={issue.id} />}
 
           {/* ML Related Issues Suggestions (Staff / Wardens ONLY) */}
           {!isStudent && <RelatedIssuesSuggestions issueId={issue.id} />}

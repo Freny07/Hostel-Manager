@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   RefreshCw,
   UserCheck,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -362,6 +363,59 @@ export function AdminAnalyticsDashboard() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recurring Issue Hotspots Card */}
+        <Card className="glass-card border-slate-800 lg:col-span-2">
+          <CardHeader className="pb-4 flex flex-row items-center justify-between">
+            <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+              <RotateCcw className="h-4 w-4 text-amber-400" /> Recurring Issue Hotspots (Last 60 Days)
+            </CardTitle>
+            <span className="text-xs font-mono text-slate-400">
+              {data.recurringHotspots.length} Hotspots Identified
+            </span>
+          </CardHeader>
+          <CardContent>
+            {data.recurringHotspots.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-6">
+                No locations with repeated maintenance complaints detected in the last 60 days.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {data.recurringHotspots.map((hotspot, idx) => (
+                  <div
+                    key={`${hotspot.locationName}_${hotspot.category}_${idx}`}
+                    className="rounded-xl bg-slate-950/80 border border-slate-800 p-4 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-white font-mono flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-amber-400" />
+                        {hotspot.locationName}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${
+                          hotspot.confidence === "high"
+                            ? "bg-rose-950 text-rose-300 border-rose-800"
+                            : "bg-amber-950 text-amber-300 border-amber-800"
+                        }`}
+                      >
+                        {hotspot.count60Days} Complaints
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-300">
+                      <span className="font-semibold text-slate-400 capitalize">Category: </span>
+                      <span className="text-indigo-300 font-mono capitalize">{hotspot.category}</span>
+                    </div>
+
+                    <p className="text-xs text-slate-400 line-clamp-1 italic">
+                      Latest: &quot;{hotspot.latestTicketTitle}&quot; ({hotspot.latestCreated.split("T")[0]})
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

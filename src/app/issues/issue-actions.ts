@@ -5,6 +5,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getUserRoleAndProfile } from "@/lib/rbac/auth-checks";
 import type { Database } from "@/lib/supabase/types";
 import { isValidStatusTransition, type IssueStatus } from "@/lib/issues/workflow";
+import { createNotificationInternal } from "@/app/notifications/notification-actions";
 
 export type IssueRow = Database["public"]["Tables"]["issues"]["Row"];
 
@@ -441,6 +442,27 @@ export async function createIssueAction(
     notes: `Maintenance issue ticket reported under '${validation.sanitized.category}' category with ${validation.sanitized.priority} priority.`,
   });
 
+  // Trigger notification for hostel staff on new ticket
+  const isUrgent = validation.sanitized.priority === "urgent";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: staffProfiles } = await (supabase as any)
+    .from("profiles")
+    .select("id");
+  if (staffProfiles && Array.isArray(staffProfiles)) {
+    for (const staff of staffProfiles) {
+      if (staff.id !== user.id) {
+        await createNotificationInternal({
+          userId: staff.id,
+          title: isUrgent ? "🚨 Urgent Maintenance Ticket" : "New Maintenance Ticket Reported",
+          message: `New ${validation.sanitized.priority} priority ${validation.sanitized.category} ticket '${validation.sanitized.title}' reported.`,
+          type: isUrgent ? "issue_escalated" : "issue_created",
+          issueId: newIssue.id,
+          actorUserId: user.id,
+        });
+      }
+    }
+  }
+
   revalidatePath("/issues");
   return {
     success: true,
@@ -567,6 +589,26 @@ export async function updateIssueStatusAction({
     event_type: eventType,
     notes: notes?.trim() || null,
   });
+
+  // Trigger notification for ticket reporter
+  const { data: fullIssue } = await issuesTable
+    .select("reporter_id, title")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (fullIssue?.reporter_id) {
+    const isResolved = newStatus === "resolved";
+    await createNotificationInternal({
+      userId: fullIssue.reporter_id,
+      title: isResolved ? "Maintenance Ticket Resolved" : "Ticket Status Updated",
+      message: isResolved
+        ? `Your maintenance ticket '${fullIssue.title || "Issue"}' has been marked as resolved.`
+        : `Your ticket '${fullIssue.title || "Issue"}' status changed to '${newStatus.replace("_", " ")}'.`,
+      type: isResolved ? "issue_resolved" : "issue_status_changed",
+      issueId,
+      actorUserId: user.id,
+    });
+  }
 
   revalidatePath("/issues");
   revalidatePath(`/issues/${issueId}`);
@@ -884,6 +926,16 @@ export async function assignIssueAction({
       notes: notes?.trim() ? `Reassigned staff: ${notes.trim()}` : "Issue reassigned to maintenance staff.",
     });
   }
+
+  // Trigger notification for assigned staff member
+  await createNotificationInternal({
+    userId: assignedToId,
+    title: "Maintenance Task Assigned",
+    message: `You have been assigned to maintenance task '${currentIssue?.title || "Issue"}'.`,
+    type: "issue_assigned",
+    issueId,
+    actorUserId: user.id,
+  });
 
   revalidatePath("/issues");
   revalidatePath(`/issues/${issueId}`);
@@ -1339,6 +1391,18 @@ export async function addIssueCommentAction({
     event_type: "progress_update",
     notes: `Added ${effectiveIsInternal ? "internal staff note" : "comment"}: "${trimmedContent.slice(0, 80)}${trimmedContent.length > 80 ? "..." : ""}"`,
   });
+
+  // Trigger notification for issue reporter
+  if (!effectiveIsInternal && issue.reporter_id && issue.reporter_id !== user.id) {
+    await createNotificationInternal({
+      userId: issue.reporter_id,
+      title: "New Comment on Maintenance Ticket",
+      message: `New comment added: "${trimmedContent.slice(0, 50)}${trimmedContent.length > 50 ? "..." : ""}"`,
+      type: "issue_commented",
+      issueId,
+      actorUserId: user.id,
+    });
+  }
 
   revalidatePath(`/issues/${issueId}`);
 

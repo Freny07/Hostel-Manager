@@ -7,6 +7,7 @@ import { createBrowserClient } from "@/lib/supabase/client";
 import { Building2, LogOut, User as UserIcon, Bed, Wrench } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import type { User } from "@supabase/supabase-js";
 
 export function Navbar() {
@@ -102,6 +103,7 @@ export function Navbar() {
                 <Wrench className="h-3.5 w-3.5 text-amber-400" />
                 Issues
               </Link>
+              <NotificationBell userId={user.id} />
               <Link
                 href="/profile"
                 className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5" })}

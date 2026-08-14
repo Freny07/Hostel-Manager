@@ -6,6 +6,7 @@ import { getUserRoleAndProfile } from "@/lib/rbac/auth-checks";
 import type { Database } from "@/lib/supabase/types";
 import { isValidStatusTransition, type IssueStatus } from "@/lib/issues/workflow";
 import { createNotificationInternal } from "@/app/notifications/notification-actions";
+import { logAuditEvent } from "@/lib/audit/audit-logger";
 import {
   fetchTextEmbedding,
   calculateCosineSimilarity,
@@ -622,6 +623,19 @@ export async function updateIssueStatusAction({
     });
   }
 
+  // Log Audit Event
+  await logAuditEvent({
+    actorId: user.id,
+    action: "issue.status_changed",
+    targetType: "issue",
+    targetId: issueId,
+    metadata: {
+      old_status: currentStatus,
+      new_status: newStatus,
+      notes: notes?.trim() || null,
+    },
+  });
+
   revalidatePath("/issues");
   revalidatePath(`/issues/${issueId}`);
 
@@ -1051,9 +1065,10 @@ export async function uploadIssueAttachmentAction(
     });
 
   if (storageErr) {
+    console.error("[Storage Upload Error]:", storageErr.message);
     return {
       success: false,
-      error: `Storage upload failed: ${storageErr.message}`,
+      error: "Failed to upload attachment file. Please try again.",
     };
   }
 
@@ -1076,11 +1091,12 @@ export async function uploadIssueAttachmentAction(
     .single();
 
   if (dbErr) {
+    console.error("[Database Attachment Insert Error]:", dbErr.message);
     // Rollback storage upload if DB insert fails
     await supabase.storage.from("issue-attachments").remove([storagePath]);
     return {
       success: false,
-      error: `Database metadata record failed: ${dbErr.message}`,
+      error: "Failed to save attachment record. Please try again.",
     };
   }
 

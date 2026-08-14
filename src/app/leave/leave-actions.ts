@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
 import { getUserRoleAndProfile } from "@/lib/rbac/auth-checks";
 import { createNotificationInternal } from "@/app/notifications/notification-actions";
+import { logAuditEvent } from "@/lib/audit/audit-logger";
 
 export interface LeaveRequestRow {
   id: string;
@@ -270,6 +271,21 @@ export async function reviewLeaveRequestAction({
     message: `Your leave request from ${existing.start_date} to ${existing.end_date} has been ${decision.toUpperCase()} by warden.`,
     type: "leave_decision",
     actorUserId: user.id,
+  });
+
+  // Log Audit Event
+  await logAuditEvent({
+    actorId: user.id,
+    action: "leave.reviewed",
+    targetType: "leave_request",
+    targetId: requestId,
+    metadata: {
+      decision,
+      student_id: existing.student_id,
+      start_date: existing.start_date,
+      end_date: existing.end_date,
+      notes: reviewerNotes?.trim() || null,
+    },
   });
 
   revalidatePath("/leave");

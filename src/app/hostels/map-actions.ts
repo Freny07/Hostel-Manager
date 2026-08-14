@@ -269,7 +269,7 @@ export async function getHostelMapDataAction(
 export async function getRoomMapDetailsAction(
   roomId: string
 ): Promise<MapActionResult<RoomMapDetails>> {
-  const { user } = await getUserRoleAndProfile();
+  const { user, role } = await getUserRoleAndProfile();
 
   if (!user) {
     return { success: false, error: "Authentication required." };
@@ -300,10 +300,10 @@ export async function getRoomMapDetailsAction(
       .maybeSingle();
 
     if (rmErr || !rmData) {
-      return { success: false, error: rmErr?.message || "Room not found." };
+      return { success: false, error: "Room inspection record not found." };
     }
 
-    // 2. Fetch beds and active student allocations
+    // 2. Fetch bed occupants
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bedsTable = (supabase as any).from("beds");
     const { data: bedsData } = await bedsTable
@@ -317,6 +317,8 @@ export async function getRoomMapDetailsAction(
       `)
       .eq("room_id", roomId);
 
+    const isStaff = ["admin", "warden", "staff"].includes(role || "");
+
     const occupants: RoomOccupantDetail[] = [];
     if (bedsData && Array.isArray(bedsData)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -324,16 +326,30 @@ export async function getRoomMapDetailsAction(
         const allocs = Array.isArray(b.allocations) ? b.allocations : [];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const activeAlloc = allocs.find((a: any) => a.status === "active");
+
+        let studentInfo = null;
+        if (activeAlloc?.student) {
+          const isSelf = activeAlloc.student.id === user.id;
+          if (isStaff || isSelf) {
+            studentInfo = {
+              id: activeAlloc.student.id,
+              full_name: activeAlloc.student.full_name,
+              email: activeAlloc.student.email,
+            };
+          } else {
+            // Redact PII for other students inspecting the room
+            studentInfo = {
+              id: activeAlloc.student.id,
+              full_name: "Occupied Bed",
+              email: "Resident Student",
+            };
+          }
+        }
+
         occupants.push({
           bed_id: b.id,
           bed_number: b.bed_number,
-          student: activeAlloc?.student
-            ? {
-                id: activeAlloc.student.id,
-                full_name: activeAlloc.student.full_name,
-                email: activeAlloc.student.email,
-              }
-            : null,
+          student: studentInfo,
         });
       });
     }

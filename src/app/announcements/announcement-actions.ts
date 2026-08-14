@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
 import { getUserRoleAndProfile } from "@/lib/rbac/auth-checks";
 import { createNotificationInternal } from "@/app/notifications/notification-actions";
+import { logAuditEvent } from "@/lib/audit/audit-logger";
 
 export interface AnnouncementRow {
   id: string;
@@ -170,6 +171,19 @@ export async function createAnnouncementAction({
       }
     }
   }
+
+  // Log Audit Event
+  await logAuditEvent({
+    actorId: user.id,
+    action: "announcement.created",
+    targetType: "announcement",
+    targetId: newRecord.id,
+    metadata: {
+      title: cleanedTitle,
+      target_type: targetType,
+      is_published: isPublished,
+    },
+  });
 
   revalidatePath("/announcements");
   return { success: true, data: newRecord as AnnouncementRow };

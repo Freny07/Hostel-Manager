@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { Building2, LogOut, User as UserIcon, Bed, Wrench, BarChart3 } from "lucide-react";
+import { Building2, LogOut, User as UserIcon, Bed, Wrench, BarChart3, Calendar, Megaphone } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -102,6 +102,20 @@ export function Navbar() {
               >
                 <Wrench className="h-3.5 w-3.5 text-amber-400" />
                 Issues
+              </Link>
+              <Link
+                href="/leave"
+                className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5 border-emerald-500/30 text-emerald-300 hover:text-white" })}
+              >
+                <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+                Leave
+              </Link>
+              <Link
+                href="/announcements"
+                className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5 border-amber-500/30 text-amber-300 hover:text-white" })}
+              >
+                <Megaphone className="h-3.5 w-3.5 text-amber-400" />
+                Notices
               </Link>
               <Link
                 href="/analytics"

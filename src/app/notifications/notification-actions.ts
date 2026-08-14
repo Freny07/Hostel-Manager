@@ -10,7 +10,10 @@ export type NotificationType =
   | "issue_status_changed"
   | "issue_commented"
   | "issue_resolved"
-  | "issue_escalated";
+  | "issue_escalated"
+  | "leave_requested"
+  | "leave_decision"
+  | "announcement_published";
 
 export interface NotificationItem {
   id: string;

@@ -6,42 +6,22 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
+import { Navbar } from "@/components/landing/Navbar";
+import { Footer } from "@/components/landing/Footer";
+
 export const metadata = {
-  title: "Admin Analytics | HostelOS",
+  title: "Operational Analytics & Reports | Hostel Manager",
   description: "Operational analytics dashboard for hostel management, bed occupancy, and maintenance issue SLAs.",
 };
 
 export default async function AnalyticsPage() {
-  const { user, role } = await getUserRoleAndProfile();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  if (role !== "admin") {
-    return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-        <Card className="glass-card border-rose-500/30 bg-rose-950/10 p-8 text-center max-w-md mx-auto">
-          <ShieldAlert className="h-12 w-12 text-rose-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Access Restricted</h2>
-          <p className="text-xs text-rose-300 mb-6">
-            Admin privileges are required to view the operational analytics dashboard.
-          </p>
-          <Link href="/issues">
-            <Button variant="outline" className="border-rose-500/40 text-rose-200">
-              Return to Issues Page
-            </Button>
-          </Link>
-        </Card>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
+      <Navbar />
+      <main className="flex-1 py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
         <AdminAnalyticsDashboard />
-      </div>
-    </main>
+      </main>
+      <Footer />
+    </div>
   );
 }

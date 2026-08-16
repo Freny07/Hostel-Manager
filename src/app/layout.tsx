@@ -9,10 +9,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "HostelOS - Next-Gen Hostel Management Platform",
+  title: "Hostel Manager - Next-Gen Campus Residence Platform",
   description: "Streamline campus accommodation, room allocations, gate passes, maintenance dispatch, and student security logs.",
-  keywords: ["Hostel Management", "Campus Accommodation", "Student Housing", "Gate Pass System", "Room Allocation"],
-  authors: [{ name: "HostelOS Team" }],
+  keywords: ["Hostel Manager", "Campus Accommodation", "Student Housing", "Gate Pass System", "Room Allocation"],
+  authors: [{ name: "Hostel Manager Team" }],
 };
 
 export default function RootLayout({

@@ -15,41 +15,51 @@ export async function getUserRoleAndProfile(): Promise<{
   profile: ProfileRow | null;
   role: AppRole | null;
 }> {
-  const supabase = await createServerClient();
+  try {
+    const supabase = await createServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    // Fast-timeout for getUser to prevent hanging SSR page loads when Supabase is slow
+    const userPromise = supabase.auth.getUser();
+    const timeoutPromise = new Promise<{ data: { user: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { user: null } }), 1200)
+    );
 
-  if (!user) {
+    const {
+      data: { user },
+    } = await Promise.race([userPromise, timeoutPromise]);
+
+    if (!user) {
+      return { user: null, profile: null, role: null };
+    }
+
+    // Query profiles table joined with roles(name) for the authenticated user
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*, roles(name)")
+      .eq("id", user.id)
+      .single();
+
+    if (!profileData) {
+      // Fail closed: Profile record not found
+      return { user, profile: null, role: null };
+    }
+
+    const profile = profileData as unknown as ProfileRow;
+    const rawRoleName = profile.roles?.name?.toLowerCase();
+
+    const role: AppRole | null =
+      rawRoleName === "admin" ||
+      rawRoleName === "warden" ||
+      rawRoleName === "maintenance" ||
+      rawRoleName === "staff" ||
+      rawRoleName === "student"
+        ? (rawRoleName as AppRole)
+        : "student"; // Default safe resident fallback if role exists in profile
+
+    return { user, profile, role };
+  } catch {
     return { user: null, profile: null, role: null };
   }
-
-  // Query profiles table joined with roles(name) for the authenticated user
-  const { data: profileData } = await supabase
-    .from("profiles")
-    .select("*, roles(name)")
-    .eq("id", user.id)
-    .single();
-
-  if (!profileData) {
-    // Fail closed: Profile record not found
-    return { user, profile: null, role: null };
-  }
-
-  const profile = profileData as unknown as ProfileRow;
-  const rawRoleName = profile.roles?.name?.toLowerCase();
-
-  const role: AppRole | null =
-    rawRoleName === "admin" ||
-    rawRoleName === "warden" ||
-    rawRoleName === "maintenance" ||
-    rawRoleName === "staff" ||
-    rawRoleName === "student"
-      ? (rawRoleName as AppRole)
-      : "student"; // Default safe resident fallback if role exists in profile
-
-  return { user, profile, role };
 }
 
 /**

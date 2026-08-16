@@ -9,11 +9,15 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  UserPlus,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   getAuditLogsAction,
+  assignUserRoleAction,
   type AuditLogRow,
 } from "@/app/admin/audit-actions";
 
@@ -26,6 +30,12 @@ export function AuditLogsViewer({ initialLogs }: AuditLogsViewerProps) {
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Admin Role Management Form State
+  const [roleEmail, setRoleEmail] = useState("");
+  const [targetRole, setTargetRole] = useState<"admin" | "warden" | "student">("warden");
+  const [roleMessage, setRoleMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isSubmittingRole, setIsSubmittingRole] = useState(false);
 
   const handleFilterChange = async (filter: string) => {
     setActionFilter(filter);
@@ -56,17 +66,52 @@ export function AuditLogsViewer({ initialLogs }: AuditLogsViewerProps) {
     }
   };
 
+  const handleAssignRoleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleEmail.trim()) return;
+
+    setIsSubmittingRole(true);
+    setRoleMessage(null);
+
+    try {
+      const res = await assignUserRoleAction({
+        targetEmail: roleEmail.trim(),
+        newRole: targetRole,
+      });
+
+      if (res.success) {
+        setRoleMessage({
+          type: "success",
+          text: res.error || `Successfully assigned '${targetRole.toUpperCase()}' role to ${roleEmail.trim()}.`,
+        });
+        setRoleEmail("");
+      } else {
+        setRoleMessage({
+          type: "error",
+          text: res.error || "Failed to assign user role.",
+        });
+      }
+    } catch {
+      setRoleMessage({
+        type: "error",
+        text: "An error occurred while updating user role.",
+      });
+    } finally {
+      setIsSubmittingRole(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-card border-slate-800 p-6">
         <div>
           <div className="flex items-center gap-2 text-xs font-mono font-bold text-violet-400 uppercase tracking-wider mb-1">
-            <ShieldCheck className="h-4 w-4" /> System Audit Trail
+            <ShieldCheck className="h-4 w-4" /> System Audit & Access Control
           </div>
-          <h1 className="text-2xl font-extrabold text-white">Application Audit Logs</h1>
+          <h1 className="text-2xl font-extrabold text-white">Application Audit & User Roles</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Immutable, server-logged record of administrative and security events.
+            Manage administrative role assignments and inspect server security event trails.
           </p>
         </div>
 
@@ -79,6 +124,59 @@ export function AuditLogsViewer({ initialLogs }: AuditLogsViewerProps) {
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh Trail
         </Button>
       </div>
+
+      {/* Admin Role Assignment Panel */}
+      <Card className="glass-card border-slate-800 p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <UserPlus className="h-5 w-5 text-indigo-400" />
+          <h2 className="text-lg font-bold text-white">Grant Admin or Warden Privileges</h2>
+        </div>
+        <p className="text-xs text-slate-400">
+          Enter an email address to assign <strong>Warden</strong> or <strong>Admin</strong> privileges. Default signups automatically receive the <strong>Student</strong> role (unless using default administrative email rules).
+        </p>
+
+        <form onSubmit={handleAssignRoleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <input
+            type="email"
+            required
+            placeholder="Enter user email (e.g. warden@campus.edu)"
+            value={roleEmail}
+            onChange={(e) => setRoleEmail(e.target.value)}
+            className="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+          />
+
+          <select
+            value={targetRole}
+            onChange={(e) => setTargetRole(e.target.value as "admin" | "warden" | "student")}
+            className="rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+          >
+            <option value="warden">Warden Role</option>
+            <option value="admin">Admin Role</option>
+            <option value="student">Student Role</option>
+          </select>
+
+          <Button type="submit" disabled={isSubmittingRole} variant="glow" className="text-xs py-2">
+            {isSubmittingRole ? "Assigning..." : "Assign Role"}
+          </Button>
+        </form>
+
+        {roleMessage && (
+          <div
+            className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+              roleMessage.type === "success"
+                ? "bg-emerald-950/60 border border-emerald-800 text-emerald-300"
+                : "bg-rose-950/60 border border-rose-800 text-rose-300"
+            }`}
+          >
+            {roleMessage.type === "success" ? (
+              <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+            )}
+            <span>{roleMessage.text}</span>
+          </div>
+        )}
+      </Card>
 
       {/* Action Filter Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">

@@ -28,7 +28,9 @@ import {
   removeAllocationAction,
   type DetailedAllocation,
   type AllocationActionResult,
+  type UnassignedStudentOption,
 } from "@/app/allocations/allocation-actions";
+import { formatDisplayDate } from "@/lib/date-utils";
 
 interface AllocationManagementProps {
   initialAllocations: DetailedAllocation[];
@@ -372,12 +374,12 @@ export function AllocationManagement({
 
                   {/* Dates & Allocator */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-400 pt-1">
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1" suppressHydrationWarning>
                       <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                      Started: {new Date(alloc.start_date).toLocaleDateString()}
+                      Started: {formatDisplayDate(alloc.start_date)}
                     </span>
                     {alloc.end_date && (
-                      <span>Ended: {new Date(alloc.end_date).toLocaleDateString()}</span>
+                      <span suppressHydrationWarning>Ended: {formatDisplayDate(alloc.end_date)}</span>
                     )}
                   </div>
                 </CardContent>

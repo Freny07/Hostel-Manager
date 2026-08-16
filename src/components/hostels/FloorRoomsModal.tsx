@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, DoorOpen, Plus, Loader2, Edit2, Trash2, ShieldCheck, AlertCircle, RefreshCw, Users, DollarSign, Bed } from "lucide-react";
+import { X, DoorOpen, Plus, Loader2, Edit2, Trash2, ShieldCheck, AlertCircle, RefreshCw, Users, IndianRupee, Bed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RoomFormModal } from "./RoomFormModal";
@@ -245,8 +245,8 @@ export function FloorRoomsModal({
                       </div>
                       {room.monthly_rent !== null && room.monthly_rent !== undefined ? (
                         <div className="flex items-center gap-1.5 text-slate-300">
-                          <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
-                          <span><strong>{room.monthly_rent}</strong> / mo</span>
+                          <IndianRupee className="h-3.5 w-3.5 text-emerald-400" />
+                          <span><strong>₹{room.monthly_rent.toLocaleString("en-IN")}</strong> / mo</span>
                         </div>
                       ) : (
                         <span className="text-slate-500 italic">No rent set</span>

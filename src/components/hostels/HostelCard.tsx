@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { HostelRow } from "@/app/hostels/hostel-actions";
+import { formatDisplayDate } from "@/lib/date-utils";
 
 export interface HostelWithCounts extends HostelRow {
   floor_count?: number;
@@ -96,7 +97,7 @@ export function HostelCard({
               </span>
             )}
           </span>
-          <span>Added {new Date(hostel.created_at).toLocaleDateString()}</span>
+          <span suppressHydrationWarning>Added {formatDisplayDate(hostel.created_at)}</span>
         </div>
       </CardContent>
 

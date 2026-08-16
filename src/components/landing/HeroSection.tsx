@@ -25,13 +25,13 @@ export function HeroSection() {
           {/* Tag / Badge */}
           <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold text-violet-300 backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-violet-400" />
-            <span>Next-Generation Hostel Operating System</span>
+            <span>Next-Generation Campus Residence Platform</span>
           </div>
 
           {/* Main Title */}
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.15]">
-            Unified Campus Living & <br className="hidden sm:inline" />
-            <span className="gradient-text">Hostel Management</span>
+            Smart Campus Living & <br className="hidden sm:inline" />
+            <span className="gradient-text">Hostel Manager</span>
           </h1>
 
           {/* Subtitle */}
@@ -41,12 +41,12 @@ export function HeroSection() {
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-            <Link href="/signup" className={buttonVariants({ variant: "glow", size: "lg", className: "w-full sm:w-auto gap-2" })}>
-              Get Started Now
+            <Link href="/hostels" className={buttonVariants({ variant: "glow", size: "lg", className: "w-full sm:w-auto gap-2" })}>
+              Launch Hostel Dashboard
               <ArrowRight className="h-5 w-5" />
             </Link>
-            <Link href="#features" className={buttonVariants({ variant: "outline", size: "lg", className: "w-full sm:w-auto" })}>
-              Explore Features
+            <Link href="/allocations" className={buttonVariants({ variant: "outline", size: "lg", className: "w-full sm:w-auto" })}>
+              View Allocations
             </Link>
           </div>
 
@@ -82,58 +82,66 @@ export function HeroSection() {
 
             <CardContent className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Stat 1 */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-medium">Total Bed Occupancy</span>
-                  <Building2 className="h-4 w-4 text-violet-400" />
+              <Link href="/hostels" className="block group">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 hover:border-violet-500/50 transition-all">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-medium group-hover:text-white transition-colors">Total Bed Occupancy</span>
+                    <Building2 className="h-4 w-4 text-violet-400" />
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-white">94.2%</span>
+                    <span className="text-xs text-emerald-400 flex items-center font-medium">
+                      <TrendingUp className="h-3 w-3 mr-0.5" /> +3.1%
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">1,248 / 1,325 Beds Filled</p>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-white">94.2%</span>
-                  <span className="text-xs text-emerald-400 flex items-center font-medium">
-                    <TrendingUp className="h-3 w-3 mr-0.5" /> +3.1%
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">1,248 / 1,325 Beds Filled</p>
-              </div>
+              </Link>
 
               {/* Stat 2 */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-medium">Active Students</span>
-                  <Users className="h-4 w-4 text-blue-400" />
+              <Link href="/allocations" className="block group">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 hover:border-blue-500/50 transition-all">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-medium group-hover:text-white transition-colors">Active Allocations</span>
+                    <Users className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-white">1,248</span>
+                    <span className="text-xs text-slate-400 font-medium">across 4 blocks</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">100% Identity Verified</p>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-white">1,248</span>
-                  <span className="text-xs text-slate-400 font-medium">across 4 blocks</span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">100% Identity Verified</p>
-              </div>
+              </Link>
 
               {/* Stat 3 */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-medium">Active Gate Passes</span>
-                  <KeyRound className="h-4 w-4 text-indigo-400" />
+              <Link href="/leave" className="block group">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 hover:border-indigo-500/50 transition-all">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-medium group-hover:text-white transition-colors">Active Gate Passes</span>
+                    <KeyRound className="h-4 w-4 text-indigo-400" />
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-white">42</span>
+                    <span className="text-xs text-indigo-400 font-medium">Out of Campus</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">0 Overdue Returns</p>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-white">42</span>
-                  <span className="text-xs text-indigo-400 font-medium">Out of Campus</span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">0 Overdue Returns</p>
-              </div>
+              </Link>
 
               {/* Stat 4 */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-medium">Open Maintenance</span>
-                  <Wrench className="h-4 w-4 text-amber-400" />
+              <Link href="/issues" className="block group">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 hover:border-amber-500/50 transition-all">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-xs font-medium group-hover:text-white transition-colors">Open Maintenance</span>
+                    <Wrench className="h-4 w-4 text-amber-400" />
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-white">12</span>
+                    <span className="text-xs text-amber-400 font-medium">Active Tickets</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">Click to view & report issues</p>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-white">8</span>
-                  <span className="text-xs text-amber-400 font-medium">In Resolution</span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">Avg turnaround: 2.4 hrs</p>
-              </div>
+              </Link>
             </CardContent>
           </Card>
         </div>

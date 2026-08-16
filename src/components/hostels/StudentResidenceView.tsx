@@ -1,9 +1,10 @@
 "use client";
 
-import { Building2, Layers, DoorOpen, Bed, Calendar, MapPin, DollarSign, Users, AlertCircle, Info, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Building2, Layers, DoorOpen, Bed, Calendar, MapPin, IndianRupee, Users, AlertCircle, Info, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DetailedAllocation } from "@/app/allocations/allocation-actions";
+import { formatDisplayDate } from "@/lib/date-utils";
 
 interface StudentResidenceViewProps {
   activeAllocation: DetailedAllocation | null;
@@ -150,8 +151,8 @@ export function StudentResidenceView({
                       <div className="text-right">
                         <span className="text-xs text-slate-400 block">Monthly Rent</span>
                         <span className="text-sm font-semibold text-emerald-400 flex items-center justify-end">
-                          <DollarSign className="h-3.5 w-3.5" />
-                          {room.monthly_rent}
+                          <IndianRupee className="h-3.5 w-3.5" />
+                          ₹{room.monthly_rent.toLocaleString("en-IN")}
                         </span>
                       </div>
                     )}
@@ -185,14 +186,10 @@ export function StudentResidenceView({
               <div className="rounded-xl bg-slate-900/60 border border-slate-800/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-indigo-400 shrink-0" />
-                  <span>
+                  <span suppressHydrationWarning>
                     Allocation Effective Date:{" "}
                     <strong className="text-white font-medium">
-                      {new Date(activeAllocation.start_date).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
+                      {formatDisplayDate(activeAllocation.start_date)}
                     </strong>
                   </span>
                 </div>
@@ -269,9 +266,9 @@ export function StudentResidenceView({
                     {getStatusBadge(alloc.status)}
                   </div>
                   <div className="flex items-center justify-between text-slate-400 pt-1">
-                    <span>
-                      {new Date(alloc.start_date).toLocaleDateString()} -{" "}
-                      {alloc.end_date ? new Date(alloc.end_date).toLocaleDateString() : "Present"}
+                    <span suppressHydrationWarning>
+                      {formatDisplayDate(alloc.start_date)} -{" "}
+                      {alloc.end_date ? formatDisplayDate(alloc.end_date) : "Present"}
                     </span>
                   </div>
                 </div>

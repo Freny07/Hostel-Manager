@@ -234,7 +234,7 @@ export function RoomFormModal({
 
           <div className="space-y-1.5">
             <Label htmlFor="monthly_rent" className="text-xs font-semibold text-slate-300">
-              Monthly Rent ($ / ₹) <span className="text-slate-500">(Optional)</span>
+              Monthly Rent (₹ Rupees) <span className="text-slate-500">(Optional)</span>
             </Label>
             <Input
               id="monthly_rent"

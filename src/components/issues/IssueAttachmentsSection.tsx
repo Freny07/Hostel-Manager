@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatDisplayDate } from "@/lib/date-utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getIssueAttachmentsAction,
@@ -235,9 +236,9 @@ export function IssueAttachmentsSection({
                   <p className="text-[10px] text-slate-400 font-mono">
                     {formatFileSize(att.file_size)}
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-slate-500" suppressHydrationWarning>
                     {att.uploader?.first_name ? `${att.uploader.first_name} ${att.uploader.last_name}` : "User"} •{" "}
-                    {new Date(att.created_at).toLocaleDateString()}
+                    {formatDisplayDate(att.created_at)}
                   </p>
 
                   {/* Actions */}

@@ -42,6 +42,7 @@ import {
   type StudentResidenceContext,
   type HostelsOption,
 } from "@/app/issues/issue-actions";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
 import { type IssueStatus } from "@/lib/issues/workflow";
 
 interface IssueListProps {
@@ -272,24 +273,8 @@ export function IssueList({
     }
   };
 
-  const formatDate = (isoString: string) => {
-    const d = new Date(isoString);
-    return d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const formatDateTime = (isoString: string) => {
-    const d = new Date(isoString);
-    return d.toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (isoString: string) => formatDisplayDate(isoString);
+  const formatDateTime = (isoString: string) => formatDisplayDateTime(isoString);
 
   const resetAllFilters = () => {
     setSearchTerm("");

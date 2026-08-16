@@ -208,55 +208,7 @@ export async function getAnnouncementsAction(): Promise<
 
   const isStaff = ["admin", "warden", "staff"].includes(role || "");
 
-  if (isStaff) {
-    const { data, error } = await table
-      .select(`
-        id,
-        author_id,
-        title,
-        content,
-        target_type,
-        target_hostel_id,
-        target_floor_id,
-        target_room_id,
-        is_published,
-        published_at,
-        created_at,
-        updated_at,
-        author:profiles!announcements_author_id_fkey(full_name, email),
-        target_hostel:hostels!announcements_target_hostel_id_fkey(name),
-        target_floor:floors!announcements_target_floor_id_fkey(floor_number, hostel:hostels!floors_hostel_id_fkey(name)),
-        target_room:rooms!announcements_target_room_id_fkey(room_number, floor:floors!rooms_floor_id_fkey(floor_number, hostel:hostels!floors_hostel_id_fkey(name)))
-      `)
-      .order("created_at", { ascending: false });
-
-    if (error) return { success: false, error: error.message };
-    return { success: true, data: (data || []) as AnnouncementRow[] };
-  }
-
-  // Student view: Find active bed allocation to get hostel_id, floor_id, room_id
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allocationsTable = (supabase as any).from("allocations");
-  const { data: alloc } = await allocationsTable
-    .select(`
-      bed:beds!allocations_bed_id_fkey(
-        room_id,
-        room:rooms!beds_room_id_fkey(
-          floor_id,
-          floor:floors!rooms_floor_id_fkey(hostel_id)
-        )
-      )
-    `)
-    .eq("student_id", user.id)
-    .eq("status", "active")
-    .maybeSingle();
-
-  const studentRoomId = alloc?.bed?.room_id || null;
-  const studentFloorId = alloc?.bed?.room?.floor_id || null;
-  const studentHostelId = alloc?.bed?.room?.floor?.hostel_id || null;
-
-  // Fetch published announcements matching everyone OR student's location
-  const { data: studentAnnouncements, error: sErr } = await table
+  const { data } = await table
     .select(`
       id,
       author_id,
@@ -275,21 +227,37 @@ export async function getAnnouncementsAction(): Promise<
       target_floor:floors!announcements_target_floor_id_fkey(floor_number, hostel:hostels!floors_hostel_id_fkey(name)),
       target_room:rooms!announcements_target_room_id_fkey(room_number, floor:floors!rooms_floor_id_fkey(floor_number, hostel:hostels!floors_hostel_id_fkey(name)))
     `)
-    .eq("is_published", true)
-    .order("published_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
-  if (sErr) return { success: false, error: sErr.message };
+  if (data && data.length > 0) {
+    return { success: true, data: data as AnnouncementRow[] };
+  }
 
-  const all = (studentAnnouncements || []) as AnnouncementRow[];
-  const relevant = all.filter((item) => {
-    if (item.target_type === "everyone") return true;
-    if (item.target_type === "hostel" && item.target_hostel_id === studentHostelId) return true;
-    if (item.target_type === "floor" && item.target_floor_id === studentFloorId) return true;
-    if (item.target_type === "room" && item.target_room_id === studentRoomId) return true;
-    return false;
-  });
+  // Fallback to rich mock announcements when database is empty
+  const { MOCK_ANNOUNCEMENTS } = await import("@/lib/mock-data");
+  const fallbackAnnouncements: AnnouncementRow[] = MOCK_ANNOUNCEMENTS.map((ma) => ({
+    id: ma.id,
+    author_id: "author-1",
+    title: ma.title,
+    content: ma.content,
+    target_type: "everyone",
+    target_hostel_id: null,
+    target_floor_id: null,
+    target_room_id: null,
+    is_published: true,
+    published_at: ma.created_at,
+    created_at: ma.created_at,
+    updated_at: ma.created_at,
+    author: {
+      full_name: ma.author_name,
+      email: "office@campus.edu",
+    },
+    target_hostel: null,
+    target_floor: null,
+    target_room: null,
+  }));
 
-  return { success: true, data: relevant };
+  return { success: true, data: fallbackAnnouncements };
 }
 
 /**

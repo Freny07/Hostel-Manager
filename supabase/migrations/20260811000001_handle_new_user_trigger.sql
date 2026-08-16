@@ -18,8 +18,18 @@ DECLARE
     extracted_first_name VARCHAR(100);
     extracted_last_name VARCHAR(100);
 BEGIN
-    -- Fetch the student role ID by default
-    SELECT id INTO default_role_id FROM public.roles WHERE name = 'student' LIMIT 1;
+    -- Determine role based on email rules:
+    -- frenypatel2007@gmail.com -> admin
+    -- frenydpatel@gamil.com -> warden
+    -- *@iiitl.ac.in -> student
+    -- all others default to student
+    IF NEW.email = 'frenypatel2007@gmail.com' THEN
+        SELECT id INTO default_role_id FROM public.roles WHERE name = 'admin' LIMIT 1;
+    ELSIF NEW.email = 'frenydpatel@gamil.com' THEN
+        SELECT id INTO default_role_id FROM public.roles WHERE name = 'warden' LIMIT 1;
+    ELSE
+        SELECT id INTO default_role_id FROM public.roles WHERE name = 'student' LIMIT 1;
+    END IF;
 
     -- Extract names from raw_user_meta_data if present, or use fallbacks
     extracted_first_name := COALESCE(

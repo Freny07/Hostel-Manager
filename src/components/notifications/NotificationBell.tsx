@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { formatDisplayDate } from "@/lib/date-utils";
 import {
   Bell,
   CheckCheck,
@@ -47,16 +49,17 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         setUnreadCount(res.data.unreadCount);
       }
     } catch {
-      // ignore
+      // ignore errors
     } finally {
       setIsLoading(false);
     }
   }, [userId]);
 
+  // Initial fetch of notifications
   useEffect(() => {
     if (!userId) return;
-
     let isMounted = true;
+
     getNotificationsAction()
       .then((res) => {
         if (!isMounted) return;
@@ -78,11 +81,23 @@ export function NotificationBell({ userId }: NotificationBellProps) {
 
   // Scoped Supabase Realtime subscription for user notifications
   useEffect(() => {
-    if (!userId) return;
+    const isRealUuid = Boolean(userId && /^[0-9a-fA-F-]{36}$/.test(userId));
+    if (!isRealUuid || !userId) return;
 
     const supabase = createBrowserClient();
-    const channel = supabase
-      .channel(`realtime_user_notifications_${userId}`)
+    const channelTopic = `realtime_user_notifications_${userId}`;
+
+    // Clean up any pre-existing channel with this topic to avoid duplicate subscribe errors
+    const existingChannels = supabase.getChannels();
+    existingChannels.forEach((ch) => {
+      if (ch.topic.includes(channelTopic)) {
+        supabase.removeChannel(ch);
+      }
+    });
+
+    const channel = supabase.channel(channelTopic);
+
+    channel
       .on(
         "postgres_changes",
         {
@@ -157,7 +172,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    return formatDisplayDate(date);
   };
 
   const getTypeIcon = (type: NotificationType) => {

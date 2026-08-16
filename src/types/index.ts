@@ -1,5 +1,5 @@
 /**
- * HostelOS Core Domain TypeScript Definitions
+ * Hostel Manager Core Domain TypeScript Definitions
  */
 
 export type RoomStatus = "available" | "occupied" | "under_maintenance" | "reserved";

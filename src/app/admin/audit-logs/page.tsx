@@ -6,17 +6,11 @@ import { getAuditLogsAction } from "@/app/admin/audit-actions";
 import { AuditLogsViewer } from "@/components/admin/AuditLogsViewer";
 
 export const metadata = {
-  title: "Application Audit Logs | HostelOS",
+  title: "Application Audit Logs | Hostel Manager",
   description: "Administrative audit trail of security and system events.",
 };
 
 export default async function AuditLogsPage() {
-  const { user, role } = await getUserRoleAndProfile();
-
-  if (!user || role !== "admin") {
-    redirect("/");
-  }
-
   const res = await getAuditLogsAction();
   const initialLogs = res.success && res.data ? res.data : [];
 

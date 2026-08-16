@@ -33,12 +33,23 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Check if any Supabase auth cookies are present in request
+  const allCookies = request.cookies.getAll();
+  const hasAuthCookie = allCookies.some(
+    (c) => c.name.includes("auth-token") || c.name.includes("sb-") || c.name.startsWith("sb:")
+  );
+
+  let user = null;
+  if (hasAuthCookie) {
+    try {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      user = authUser;
+    } catch {
+      user = null;
+    }
+  }
 
   const pathname = request.nextUrl.pathname;
 

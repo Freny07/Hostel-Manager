@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { formatDisplayDate } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -179,8 +180,8 @@ export function ProfileForm({ initialProfile, initialAllocation }: ProfileFormPr
               </div>
             </div>
 
-            <p className="text-xs text-slate-500 pt-1">
-              Member since {new Date(initialProfile.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+            <p className="text-xs text-slate-500 pt-1" suppressHydrationWarning>
+              Member since {formatDisplayDate(initialProfile.created_at)}
             </p>
           </div>
         </div>
@@ -396,10 +397,10 @@ export function ProfileForm({ initialProfile, initialAllocation }: ProfileFormPr
 
                 <div className="flex items-center gap-2 text-xs text-slate-400 p-3 rounded-lg border border-slate-800 bg-slate-950/60">
                   <Calendar className="h-4 w-4 text-violet-400 shrink-0" />
-                  <span>
+                  <span suppressHydrationWarning>
                     Occupied since{" "}
                     <strong className="text-slate-200">
-                      {new Date(initialAllocation.start_date).toLocaleDateString()}
+                      {formatDisplayDate(initialAllocation.start_date)}
                     </strong>
                   </span>
                 </div>

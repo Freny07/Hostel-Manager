@@ -10,7 +10,7 @@
 
 ---
 
-## Live Link : 
+## Live Link : https://hostel-manager-seven.vercel.app/
 
 ## 🌟 Key Features & Core Modules
 

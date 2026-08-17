@@ -18,8 +18,6 @@ import { HostelFormModal } from "./HostelFormModal";
 import { HostelDetailsModal } from "./HostelDetailsModal";
 import { DeleteHostelDialog } from "./DeleteHostelDialog";
 import { HostelFloorsModal } from "./HostelFloorsModal";
-import { HostelVisualMap } from "./HostelVisualMap";
-import { LayoutGrid, Map } from "lucide-react";
 import {
   createHostelAction,
   updateHostelAction,
@@ -39,9 +37,6 @@ export function HostelManagement({
   canManage,
 }: HostelManagementProps) {
   const router = useRouter();
-
-  // View Mode State
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState("");
@@ -190,34 +185,6 @@ export function HostelManagement({
         </div>
 
         <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
-          {/* View Mode Toggle Buttons */}
-          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                viewMode === "list"
-                  ? "bg-indigo-600 text-white shadow"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Directory
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("map")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                viewMode === "map"
-                  ? "bg-indigo-600 text-white shadow"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Map className="h-3.5 w-3.5" />
-              Visual Floor Map
-            </button>
-          </div>
-
           {canManage && (
             <Button
               onClick={handleOpenCreate}
@@ -231,12 +198,8 @@ export function HostelManagement({
         </div>
       </div>
 
-      {viewMode === "map" ? (
-        /* Visual Architectural Floor Map Mode */
-        <HostelVisualMap />
-      ) : (
-        /* Standard Directory List Mode */
-        <>
+      {/* Standard Directory List Mode */}
+      <>
           {/* Control Bar: Search & Gender Filter */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Search */}
@@ -339,7 +302,6 @@ export function HostelManagement({
             </div>
           )}
         </>
-      )}
 
       {/* Modals */}
       <HostelFormModal

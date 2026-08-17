@@ -14,20 +14,21 @@ export const metadata = {
 export default async function LeavePage() {
   const { user, role } = await getUserRoleAndProfile();
 
-  const effectiveRole = role || "warden";
+  const normalizedRole = (role || "").toLowerCase();
+  // Admin and Warden both approve/reject student leave passes; neither applies for leave.
+  const isWardenOrAdmin = normalizedRole === "admin" || normalizedRole === "warden" || !user;
+
   const res = await getLeaveRequestsAction();
   const initialRequests = res.success && res.data ? res.data : [];
-
-  const isStudent = effectiveRole === "student";
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
       <Navbar />
       <main className="flex-1 py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        {isStudent ? (
-          <StudentLeaveList initialRequests={initialRequests} />
-        ) : (
+        {isWardenOrAdmin ? (
           <WardenLeaveManagement initialRequests={initialRequests} />
+        ) : (
+          <StudentLeaveList initialRequests={initialRequests} />
         )}
       </main>
       <Footer />

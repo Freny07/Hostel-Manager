@@ -32,6 +32,15 @@ export async function getUserRoleAndProfile(): Promise<{
       return { user: null, profile: null, role: null };
     }
 
+    // Explicit email role assignments override database lookup failures
+    const email = user.email?.toLowerCase() || "";
+    if (email === "frenypatel2007@gmail.com") {
+      return { user, profile: null, role: "admin" };
+    }
+    if (email === "frenydpatel@gamil.com" || email === "frenydpatel@gmail.com") {
+      return { user, profile: null, role: "warden" };
+    }
+
     // Query profiles table joined with roles(name) for the authenticated user
     const { data: profileData } = await supabase
       .from("profiles")
@@ -41,7 +50,7 @@ export async function getUserRoleAndProfile(): Promise<{
 
     if (!profileData) {
       // Fail closed: Profile record not found
-      return { user, profile: null, role: null };
+      return { user, profile: null, role: "student" };
     }
 
     const profile = profileData as unknown as ProfileRow;

@@ -16,7 +16,7 @@ const features = [
   {
     icon: Building2,
     title: "Smart Bed & Room Allocation",
-    description: "Automate room inventory management, track block capacity, floor maps, and student preferences with instant re-allocation.",
+    description: "Automate room inventory management, track block capacity, room types, and student preferences with instant re-allocation.",
     badge: "Core Inventory",
     href: "/allocations",
     color: "text-violet-400",

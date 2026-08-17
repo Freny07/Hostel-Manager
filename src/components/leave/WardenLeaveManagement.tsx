@@ -189,18 +189,20 @@ export function WardenLeaveManagement({
                     <div className="flex items-center gap-2">
                       <WardenStatusBadge status={req.status} />
 
-                      {req.status === "pending" && (
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        {req.status !== "approved" && (
                           <Button
                             type="button"
                             size="sm"
                             onClick={() =>
                               setReviewingTarget({ request: req, decision: "approved" })
                             }
-                            className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold h-8"
+                            className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold h-8 shadow-sm"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" /> Approve
                           </Button>
+                        )}
+                        {req.status !== "rejected" && (
                           <Button
                             type="button"
                             size="sm"
@@ -208,12 +210,12 @@ export function WardenLeaveManagement({
                             onClick={() =>
                               setReviewingTarget({ request: req, decision: "rejected" })
                             }
-                            className="gap-1 text-xs h-8"
+                            className="gap-1 text-xs h-8 bg-rose-600 hover:bg-rose-500 text-white font-semibold shadow-sm"
                           >
                             <XCircle className="h-3.5 w-3.5" /> Reject
                           </Button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
 

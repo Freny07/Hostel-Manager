@@ -20,7 +20,7 @@ interface ReportIssueModalProps {
   isOpen: boolean;
   onClose: () => void;
   residenceContext: StudentResidenceContext | null;
-  onSuccess: () => void;
+  onSuccess: (createdIssue?: IssueRow) => void;
 }
 
 export function ReportIssueModal({
@@ -148,7 +148,7 @@ export function ReportIssueModal({
           setFieldErrors(res.fieldErrors);
         }
       } else {
-        onSuccess();
+        onSuccess(res.data);
         onClose();
       }
     } catch (err) {

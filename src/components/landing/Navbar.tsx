@@ -112,15 +112,20 @@ export function Navbar() {
     router.refresh();
   };
 
-  const navItems = [
+  const rawNavItems = [
     { href: "/hostels", label: "Hostels", icon: Building2, color: "text-violet-400" },
     { href: "/allocations", label: "Allocations", icon: Bed, color: "text-indigo-400" },
     { href: "/issues", label: "Issues", icon: Wrench, color: "text-amber-400" },
     { href: "/leave", label: "Leave Pass", icon: Calendar, color: "text-emerald-400" },
     { href: "/announcements", label: "Notices", icon: Megaphone, color: "text-cyan-400" },
-    { href: "/analytics", label: "Analytics", icon: BarChart3, color: "text-purple-400" },
-    { href: "/admin/audit-logs", label: "Audit Logs", icon: ShieldCheck, color: "text-rose-400" },
+    { href: "/analytics", label: "Analytics", icon: BarChart3, color: "text-purple-400", roles: ["Admin", "Warden"] },
+    { href: "/admin/audit-logs", label: "Audit Logs", icon: ShieldCheck, color: "text-rose-400", roles: ["Admin", "Warden"] },
   ];
+
+  const navItems = rawNavItems.filter((item) => {
+    if (!item.roles) return true;
+    return item.roles.includes(userRole);
+  });
 
   const getRoleBadgeVariant = (roleStr: string) => {
     switch (roleStr.toLowerCase()) {

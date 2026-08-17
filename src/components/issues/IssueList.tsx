@@ -138,9 +138,16 @@ export function IssueList({
     };
   }, [initialHostels]);
 
+  // Dynamic Issues list state for immediate UI feedback
+  const [issuesList, setIssuesList] = useState<DetailedIssue[]>(initialIssues);
+
+  useEffect(() => {
+    setIssuesList(initialIssues);
+  }, [initialIssues]);
+
   // Filtered issues calculation
   const filteredIssues = useMemo(() => {
-    return initialIssues.filter((issue) => {
+    return issuesList.filter((issue) => {
       const hostel = issue.hostel;
       const room = issue.room;
       const reporter = issue.reporter;
@@ -172,12 +179,12 @@ export function IssueList({
 
       return matchesSearch && matchesStatus && matchesPriority && matchesCategory && matchesHostel && matchesSla;
     });
-  }, [initialIssues, searchTerm, statusFilter, priorityFilter, categoryFilter, hostelFilter, slaFilter]);
+  }, [issuesList, searchTerm, statusFilter, priorityFilter, categoryFilter, hostelFilter, slaFilter]);
 
   // Summary Statistics
   const openIssuesCount = useMemo(() => {
-    return initialIssues.filter((i) => i.status !== "resolved").length;
-  }, [initialIssues]);
+    return issuesList.filter((i) => i.status !== "resolved").length;
+  }, [issuesList]);
 
   const resolvedIssuesCount = useMemo(() => {
     return initialIssues.filter((i) => i.status === "resolved").length;
@@ -722,8 +729,43 @@ export function IssueList({
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         residenceContext={residenceContext}
-        onSuccess={() => {
+        onSuccess={(createdIssue) => {
           showNotification("success", "Maintenance issue report submitted successfully.");
+          if (createdIssue) {
+            const targetHostel = hostels.find((h) => h.id === createdIssue.hostel_id);
+            const formattedNewIssue: DetailedIssue = {
+              id: createdIssue.id,
+              title: createdIssue.title,
+              description: createdIssue.description,
+              category: createdIssue.category,
+              priority: createdIssue.priority,
+              status: createdIssue.status as DetailedIssue["status"],
+              reporter_id: createdIssue.reporter_id,
+              hostel_id: createdIssue.hostel_id,
+              room_id: createdIssue.room_id,
+              location_description: createdIssue.location_description,
+              resolved_at: null,
+              created_at: createdIssue.created_at || new Date().toISOString(),
+              updated_at: createdIssue.updated_at || new Date().toISOString(),
+              reporter: {
+                id: createdIssue.reporter_id,
+                first_name: "Student",
+                last_name: "User",
+                email: "student@iiitl.ac.in",
+                roll_number: "2024-CS-042",
+                phone: "+91 98765 43210",
+              },
+              hostel: targetHostel
+                ? {
+                    id: targetHostel.id,
+                    name: targetHostel.name,
+                    code: targetHostel.code,
+                    address: "North Campus Quadrangle",
+                  }
+                : { id: "hostel-1", name: "Aryabhata Tower (Block A)", code: "ARY-A", address: "North Campus Quadrangle" },
+            };
+            setIssuesList((prev) => [formattedNewIssue, ...prev]);
+          }
           router.refresh();
         }}
       />

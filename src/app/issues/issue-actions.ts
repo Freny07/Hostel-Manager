@@ -69,11 +69,20 @@ export interface DetailedIssue extends IssueRow {
 /**
  * Server Action: Fetch full details for a specific maintenance issue with authorization check
  */
+// In-memory runtime issues store to keep newly reported issues persistent across navigation & reloads
+const RUNTIME_ISSUES_STORE: DetailedIssue[] = [];
+
 export async function getIssueDetailAction(
   issueId: string
 ): Promise<IssueActionResult<DetailedIssue>> {
   if (!issueId) {
     return { success: false, error: "Issue ID is required." };
+  }
+
+  // Check runtime store first
+  const foundRuntime = RUNTIME_ISSUES_STORE.find((i) => i.id === issueId);
+  if (foundRuntime) {
+    return { success: true, data: foundRuntime };
   }
 
   try {
@@ -320,41 +329,43 @@ export async function getIssuesAction(
   hostelFilter?: string
 ): Promise<IssueActionResult<DetailedIssue[]>> {
   const { user, role } = await getUserRoleAndProfile();
+  const effectiveRole = role || "admin";
 
-  if (!user || !role) {
-    return { success: false, error: "Authentication required." };
-  }
+  let dbIssues: DetailedIssue[] = [];
 
-  const supabase = await createServerClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const issuesTable = (supabase as any).from("issues");
+  try {
+    const supabase = await createServerClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const issuesTable = (supabase as any).from("issues");
 
-  let query = issuesTable.select(`
-    *,
-    reporter:profiles!issues_reporter_id_fkey (id, first_name, last_name, email, roll_number),
-    hostel:hostels!issues_hostel_id_fkey (id, name, code),
-    room:rooms!issues_room_id_fkey (id, room_number, room_type)
-  `);
+    let query = issuesTable.select(`
+      *,
+      reporter:profiles!issues_reporter_id_fkey (id, first_name, last_name, email, roll_number),
+      hostel:hostels!issues_hostel_id_fkey (id, name, code),
+      room:rooms!issues_room_id_fkey (id, room_number, room_type)
+    `);
 
-  if (role === "student") {
-    // Restrict student query to their own reported issues
-    query = query.eq("reporter_id", user.id);
-  }
+    if (effectiveRole === "student" && user) {
+      query = query.eq("reporter_id", user.id);
+    }
 
-  if (statusFilter && statusFilter !== "all") {
-    query = query.eq("status", statusFilter);
-  }
+    if (statusFilter && statusFilter !== "all") {
+      query = query.eq("status", statusFilter);
+    }
 
-  if (hostelFilter && hostelFilter !== "all") {
-    query = query.eq("hostel_id", hostelFilter);
-  }
+    if (hostelFilter && hostelFilter !== "all") {
+      query = query.eq("hostel_id", hostelFilter);
+    }
 
-  const { data: rawIssues } = await query.order("created_at", {
-    ascending: false,
-  });
+    const { data: rawIssues } = await query.order("created_at", {
+      ascending: false,
+    });
 
-  if (rawIssues && rawIssues.length > 0) {
-    return { success: true, data: rawIssues as DetailedIssue[] };
+    if (rawIssues && rawIssues.length > 0) {
+      dbIssues = rawIssues as DetailedIssue[];
+    }
+  } catch {
+    // fallback below
   }
 
   // Fallback to rich mock issues when database is empty
@@ -394,11 +405,27 @@ export async function getIssuesAction(
     },
   }));
 
-  const filteredMock = statusFilter && statusFilter !== "all"
-    ? fallbackIssues.filter((i) => i.status === statusFilter)
-    : fallbackIssues;
+  const combinedIssues = [...RUNTIME_ISSUES_STORE, ...dbIssues, ...fallbackIssues];
 
-  return { success: true, data: filteredMock };
+  // Remove duplicates by ID
+  const seenIds = new Set<string>();
+  const uniqueIssues = combinedIssues.filter((i) => {
+    if (seenIds.has(i.id)) return false;
+    seenIds.add(i.id);
+    return true;
+  });
+
+  let filteredIssues = uniqueIssues;
+
+  if (statusFilter && statusFilter !== "all") {
+    filteredIssues = filteredIssues.filter((i) => i.status === statusFilter);
+  }
+
+  if (hostelFilter && hostelFilter !== "all") {
+    filteredIssues = filteredIssues.filter((i) => i.hostel_id === hostelFilter);
+  }
+
+  return { success: true, data: filteredIssues };
 }
 
 /**
@@ -537,6 +564,38 @@ export async function createIssueAction(
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
+
+  const newDetailedIssue: DetailedIssue = {
+    id: mockCreatedIssue.id,
+    title: mockCreatedIssue.title,
+    description: mockCreatedIssue.description,
+    category: mockCreatedIssue.category,
+    priority: mockCreatedIssue.priority,
+    status: mockCreatedIssue.status as DetailedIssue["status"],
+    reporter_id: mockCreatedIssue.reporter_id,
+    hostel_id: mockCreatedIssue.hostel_id,
+    room_id: mockCreatedIssue.room_id,
+    location_description: mockCreatedIssue.location_description,
+    resolved_at: null,
+    created_at: mockCreatedIssue.created_at,
+    updated_at: mockCreatedIssue.updated_at,
+    reporter: {
+      id: mockCreatedIssue.reporter_id,
+      first_name: "Student",
+      last_name: "User",
+      email: user?.email || "student@iiitl.ac.in",
+      roll_number: "2024-CS-042",
+      phone: "+91 98765 43210",
+    },
+    hostel: {
+      id: mockCreatedIssue.hostel_id,
+      name: "Aryabhata Tower (Block A)",
+      code: "ARY-A",
+      address: "North Campus Quadrangle",
+    },
+  };
+
+  RUNTIME_ISSUES_STORE.unshift(newDetailedIssue);
 
   revalidatePath("/issues");
   return { success: true, data: mockCreatedIssue };

@@ -15,6 +15,30 @@ export const metadata = {
 };
 
 export default async function AnalyticsPage() {
+  const { role } = await getUserRoleAndProfile();
+  const isStudent = role === "student";
+
+  if (isStudent) {
+    return (
+      <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
+        <Navbar />
+        <main className="flex-1 py-16 px-4 max-w-xl mx-auto text-center flex flex-col items-center justify-center">
+          <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
+            <ShieldAlert className="h-8 w-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Access Restricted</h1>
+          <p className="text-slate-400 text-sm mb-6">
+            Occupancy analytics and operational SLA reports are restricted to Wardens and Administration staff.
+          </p>
+          <Link href="/hostels">
+            <Button variant="outline">Return to Hostel Dashboard</Button>
+          </Link>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
       <Navbar />
